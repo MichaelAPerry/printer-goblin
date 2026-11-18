@@ -12,6 +12,9 @@
 | 2026-11-18 | claude | No-arg launch opens GUI; B&W mascot; Pages + cross-platform test workflows | kept |
 | 2026-11-18 | codex | PWG Raster renderer (sgray_8, 300 dpi), public-domain Fixed bitmap font, IPP Print-Job robustness | kept; CUPS round-trip exact; printed OK on Brother MFC-L2700DW (job 470, completed, 1 impression) |
 | 2026-11-18 | claude | Live test vs Brother MFC-L2700DW from WSL | found+fixed: auto mode fell back to PCL with no evidence (would print garbage on host-based lasers); slow-waking printer ports mislabelled filtered (retry pass); WSL NAT source address shown as if real; verify output now human-readable |
+| 2026-11-18 | codex | Correctness pass: verify policy/liveness verdicts, observed vs inferred findings, conservative ESC/POS, IPPS removed, print status ladder | kept; live: Brother EXPOSED (exit 3), unused IP INCONCLUSIVE (exit 4) |
+| 2026-11-18 | codex | PyInstaller packaging + release workflow | kept; Claude built locally (sandbox had no PyPI): 7 MB Linux binary, GUI assets load, printed job 471 completed |
+| 2026-11-18 | claude | Renamed Printer Gremlin -> Printer Goblin everywhere (package printer_goblin, CLI printer-goblin, state dir, assets) | kept; Pages URL unchanged so printed QR codes stay valid. Entries above use the old name |
 
 ## Live test notes (2026-11-18, Brother MFC-L2700DW, home LAN, from WSL2)
 - Advertises only image/urf + image/pwg-raster (sgray_8, 300 dpi), copies 1-99, SNMP public, ports 9100/631/515/80/443.

@@ -8,9 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from printer_gremlin import safety, transports, workflow
-from printer_gremlin.identify import Fingerprint
-from printer_gremlin.protocols import ipp
+from printer_goblin import safety, transports, workflow
+from printer_goblin.identify import Fingerprint
+from printer_goblin.protocols import ipp
 
 
 def attribute(tag, name, value):

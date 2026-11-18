@@ -2,7 +2,7 @@ import struct
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 
-from printer_gremlin.protocols import ipp, snmp
+from printer_goblin.protocols import ipp, snmp
 
 
 def test_ipp_request_round_trip():
@@ -15,7 +15,7 @@ def test_ipp_request_round_trip():
     assert ipp.decode_response(encoded) == {
         "attributes-charset": ["utf-8"], "attributes-natural-language": ["en"],
         "printer-uri": ["ipp://127.0.0.1:631/ipp/print"],
-        "requesting-user-name": ["printer-gremlin"], "requested-attributes": ["one", "two"],
+        "requesting-user-name": ["printer-goblin"], "requested-attributes": ["one", "two"],
         "document-format": ["application/pdf"], "job-name": ["Notice"], "copies": [1],
     }
 

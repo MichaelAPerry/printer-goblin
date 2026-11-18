@@ -4,8 +4,8 @@ from threading import Thread
 
 import pytest
 
-from printer_gremlin import cli, safety, scope, verify
-from printer_gremlin.identify import Fingerprint
+from printer_goblin import cli, safety, scope, verify
+from printer_goblin.identify import Fingerprint
 
 
 def test_scope(monkeypatch):
@@ -67,7 +67,7 @@ def test_verify_localhost(tmp_path, localhost_tcp):
 
 
 def test_demo_refusals(monkeypatch, tmp_path):
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
 
     def unexpected(*args):
         pytest.fail("refusal should precede identification")
@@ -80,7 +80,7 @@ def test_demo_refusals(monkeypatch, tmp_path):
 
 
 def test_demo_unknown_auto(monkeypatch, tmp_path, capsys):
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
     monkeypatch.setattr(cli, "identify", Fingerprint)
     assert cli.main(["demo", "127.0.0.1", "--yes-i-am-authorized"]) == 1
     assert "may print garbage pages" in capsys.readouterr().err
@@ -99,7 +99,7 @@ def test_preview_is_offline(monkeypatch, tmp_path):
 
 def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
     ip = "127.0.0.1"
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
     confirmed = []
     monkeypatch.setattr(safety, "confirm", lambda target, summary: not confirmed.append(target))
     jobs = []
@@ -137,7 +137,7 @@ def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
     (("filtered", "filtered"), (631,), ("UNVERIFIED", "OVER-BLOCKED"), "OVER-BLOCKED", 5),
 ])
 def test_verify_policy_and_exit_codes(monkeypatch, tmp_path, capsys, states, allowed, classes, verdict, code):
-    from printer_gremlin import net
+    from printer_goblin import net
 
     ip = "127.0.0.1"
     ports = (9100, 631)
@@ -192,7 +192,7 @@ def test_verify_reference_and_attestation(monkeypatch, tmp_path, capsys):
 
 
 def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_path, capsys):
-    from printer_gremlin import net
+    from printer_goblin import net
 
     ip = "127.0.0.1"
     actions = []
@@ -229,7 +229,7 @@ def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_p
         actions.append("confirm")
         return True
 
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
     monkeypatch.setattr(cli, "identify", Fingerprint)
     monkeypatch.setattr(net, "source_ip", lambda host: ip)
     monkeypatch.setattr(safety, "confirm", confirm)
@@ -250,7 +250,7 @@ def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_p
 
 def test_slow_printer_ports_are_retried(monkeypatch):
     """A waking printer answers slowly; a short timeout must not mislabel it."""
-    from printer_gremlin import discovery, net
+    from printer_goblin import discovery, net
 
     def fake(host, port, timeout, accurate=False):
         if host != "192.168.9.5":

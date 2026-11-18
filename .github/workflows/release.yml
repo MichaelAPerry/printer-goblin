@@ -36,10 +36,10 @@ jobs:
       - name: Install build dependencies
         run: python -m pip install . pyinstaller pillow
       - name: Build standalone executable
-        run: python -m PyInstaller --noconfirm --workpath packaging/build --distpath packaging/dist packaging/printer-gremlin.spec
+        run: python -m PyInstaller --noconfirm --workpath packaging/build --distpath packaging/dist packaging/printer-goblin.spec
       - name: Smoke-test executable
         env:
-          BINARY: ./packaging/dist/printer-gremlin${{ matrix.extension }}
+          BINARY: ./packaging/dist/printer-goblin${{ matrix.extension }}
         run: |
           "$BINARY" --help
           "$BINARY" preview --format pdf -o packaging/dist/smoke.pdf
@@ -54,10 +54,10 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             VERSION="$GITHUB_REF_NAME"
           else
-            VERSION="v$(python -c 'from importlib.metadata import version; print(version("printer-gremlin"))')"
+            VERSION="v$(python -c 'from importlib.metadata import version; print(version("printer-goblin"))')"
           fi
           mkdir -p packaging/dist/release
-          cp "packaging/dist/printer-gremlin${EXTENSION}" "packaging/dist/release/printer-gremlin-${VERSION}-${PLATFORM}-${ARCH,,}${EXTENSION}"
+          cp "packaging/dist/printer-goblin${EXTENSION}" "packaging/dist/release/printer-goblin-${VERSION}-${PLATFORM}-${ARCH,,}${EXTENSION}"
       - name: Build wheel and source distribution
         if: matrix.platform == 'linux'
         run: |
@@ -102,5 +102,5 @@ jobs:
             - macOS — `shasum -a 256 <filename>`
             - Linux — `sha256sum <filename>`
 
-            For authorized use only. Use Printer Gremlin only on printers and
+            For authorized use only. Use Printer Goblin only on printers and
             networks you own or have explicit permission to test.

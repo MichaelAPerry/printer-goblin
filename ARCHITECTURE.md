@@ -14,7 +14,7 @@ Dependency budget: Python ≥3.10 standard library + [`segno`](https://pypi.org/
 ## Modules
 
 ```
-printer_gremlin/
+printer_goblin/
   scope.py        private/link-local only; scans capped at /22; DNS can't smuggle public targets
   safety.py       typed-address confirmation, 3 prints/run, 10-min per-target cooldown, audit log
   net.py          TCP connect probes (open / closed / filtered), bounded concurrency

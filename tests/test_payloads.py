@@ -1,8 +1,8 @@
 import pytest
 
-from printer_gremlin.payloads import pcl, pdf, postscript, receipt
-from printer_gremlin.payloads.escpos import EscPosJob, UnsafeCommandError
-from printer_gremlin.payloads.notice import Notice
+from printer_goblin.payloads import pcl, pdf, postscript, receipt
+from printer_goblin.payloads.escpos import EscPosJob, UnsafeCommandError
+from printer_goblin.payloads.notice import Notice
 
 NOTICE = Notice("You've been (gobbed)!", [r"One line with \ and ()."], "https://example.org/")
 

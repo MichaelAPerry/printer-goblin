@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Printer Gremlin bitmaps from the two source PNGs."""
+"""Build the Printer Goblin bitmaps from the two source PNGs."""
 
 from pathlib import Path
 import struct
@@ -12,7 +12,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "assets"
-PACKAGE = ROOT / "printer_gremlin" / "assets"
+PACKAGE = ROOT / "printer_goblin" / "assets"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -199,17 +199,17 @@ def color_thumbnail(width, height, rgb):
 
 def main():
     PACKAGE.mkdir(parents=True, exist_ok=True)
-    line_art = trim_line_art(*read_png(ART / "gremlin-source.png"))
+    line_art = trim_line_art(*read_png(ART / "goblin-source.png"))
     for width in (384, 576):
         height, ink = pbm_raster(*line_art, width)
-        path = PACKAGE / f"gremlin_{width}.pbm"
+        path = PACKAGE / f"goblin_{width}.pbm"
         write_pbm(path, width, height, ink)
         print(f"{path.name}: {width} x {height}, {sum(ink) / len(ink):.2%} black, "
               f"{path.stat().st_size:,} bytes")
     # Black-and-white line art everywhere (GUI, docs, README) to match the printout.
-    thumbnail = color_thumbnail(*read_png(ART / "gremlin-source.png"))
-    (PACKAGE / "gremlin_256.png").write_bytes(thumbnail)
-    (ROOT / "docs" / "gremlin.png").write_bytes(thumbnail)
+    thumbnail = color_thumbnail(*read_png(ART / "goblin-source.png"))
+    (PACKAGE / "goblin_256.png").write_bytes(thumbnail)
+    (ROOT / "docs" / "goblin.png").write_bytes(thumbnail)
 
 
 if __name__ == "__main__":

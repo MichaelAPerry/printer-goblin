@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from printer_gremlin import assets
-from printer_gremlin.findings import findings
-from printer_gremlin.identify import Fingerprint
-from printer_gremlin.payloads import _page, pcl, pdf, postscript, receipt
-from printer_gremlin.payloads.notice import build_notice
+from printer_goblin import assets
+from printer_goblin.findings import findings
+from printer_goblin.identify import Fingerprint
+from printer_goblin.payloads import _page, pcl, pdf, postscript, receipt
+from printer_goblin.payloads.notice import build_notice
 
 PIXELS = [[True, False, True], [False, True, False]]
 ALL_PORTS = [9100, 631, 515, 80, 443]
@@ -56,11 +56,11 @@ def test_mascot_downscale(monkeypatch):
 
     def load(name):
         calls.append(name)
-        return rows if name == "gremlin_576.pbm" else None
+        return rows if name == "goblin_576.pbm" else None
 
     monkeypatch.setattr(assets, "load_pbm", load)
     assert assets.mascot(288) == [[True] * 288] * 3
-    assert calls == ["gremlin_384.pbm", "gremlin_576.pbm"]
+    assert calls == ["goblin_384.pbm", "goblin_576.pbm"]
 
 
 @pytest.mark.parametrize("image", [None, PIXELS])
@@ -77,7 +77,7 @@ def test_fact_sheet_renderers(monkeypatch, image):
     ps, pcl_data, pdf_data = (renderer.render(notice) for renderer in (postscript, pcl, pdf))
     esc = receipt.render(notice, paper="58", native_qr=False)
     for data in (ps, pcl_data, pdf_data, esc):
-        assert b"WHAT THE GREMLIN SAW" in data
+        assert b"WHAT THE GOBLIN SAW" in data
         assert b"[HIGH]" in data and b"Likely: " in data
         assert serial.encode() not in data
         assert b"OTHER-PRIVATE-SERIAL" not in data
@@ -98,7 +98,7 @@ def test_fact_sheet_renderers(monkeypatch, image):
 
 
 def test_identify_records_responses_and_firmware(monkeypatch):
-    from printer_gremlin.identify import identify, ipp, net, snmp
+    from printer_goblin.identify import identify, ipp, net, snmp
 
     class Connection:
         def __init__(self, ip, port, timeout):
@@ -127,7 +127,7 @@ def test_identify_records_responses_and_firmware(monkeypatch):
 
 
 def test_preview_sample_is_opt_in(tmp_path):
-    from printer_gremlin.cli import main
+    from printer_goblin.cli import main
 
     path = tmp_path / "notice.pdf"
     args = ["preview", "--format", "pdf", "-o", str(path)]
@@ -152,8 +152,8 @@ def test_preview_sample_is_opt_in(tmp_path):
     ("XPrinter with ESC/POS emulation", True),
 ])
 def test_thermal_requires_positive_escpos_evidence(model, expected):
-    from printer_gremlin import safety, workflow
-    from printer_gremlin.identify import _add_evidence
+    from printer_goblin import safety, workflow
+    from printer_goblin.identify import _add_evidence
 
     fp = Fingerprint("127.0.0.1", snmp_values={"sysDescr": model})
     _add_evidence(fp)

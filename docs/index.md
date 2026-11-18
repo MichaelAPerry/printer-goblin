@@ -5,13 +5,13 @@ title: "You've been gobbed! Now what?"
 
 <!-- Draft by local wording model (qwen3.5:9b); fact-checked and corrected. -->
 
-<p align="center"><img src="gremlin.png" width="180" alt="Printer Gremlin mascot"></p>
+<p align="center"><img src="goblin.png" width="180" alt="Printer Goblin mascot"></p>
 
 [About this project](about)
 
 # You've been gobbed! Now what?
 
-Congratulations on discovering **Printer Gremlin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code titled **"YOU'VE BEEN GOBBED!"**, take a deep breath. This is not an attack, your data has not been stolen, and no malicious documents were printed. It came from an authorized security test of how well your network keeps printers fenced off.
+Congratulations on discovering **Printer Goblin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code titled **"YOU'VE BEEN GOBBED!"**, take a deep breath. This is not an attack, your data has not been stolen, and no malicious documents were printed. It came from an authorized security test of how well your network keeps printers fenced off.
 
 Here is everything you need to know, depending on your role.
 
@@ -55,19 +55,19 @@ To remediate these findings and secure your infrastructure against similar scans
 1. From the network segment you want to test, record a baseline before applying the fix. All selected ports are expected to be blocked by default. Add `--allow 631` if IPP should stay reachable from that segment.
 
     ```bash
-    printer-gremlin baseline <printer-ip> --out before.json
+    printer-goblin baseline <printer-ip> --out before.json
     ```
 
 2. After applying the fix, take a reference snapshot from a network that can still reach the printer. The snapshot must show an open port for each printer and be at most 30 minutes old.
 
     ```bash
-    printer-gremlin snapshot <printer-ip> --out ref.json
+    printer-goblin snapshot <printer-ip> --out ref.json
     ```
 
 3. Back on the baseline network, run verification. In the GUI, choose the snapshot file in the Verify section.
 
     ```bash
-    printer-gremlin verify before.json --reference ref.json
+    printer-goblin verify before.json --reference ref.json
     ```
 
 - **PASS (0)** means the selected ports match the policy.
@@ -77,9 +77,9 @@ To remediate these findings and secure your infrastructure against similar scans
 
 Results apply only from the network where you ran verification. Repeat for each segment you need to test.
 
-## About Printer Gremlin
+## About Printer Goblin
 
-Finally, a brief note on the tool itself. **Printer Gremlin** is an open-source project intended strictly for authorized security testing and network hygiene audits. It operates with several safety guards in place:
+Finally, a brief note on the tool itself. **Printer Goblin** is an open-source project intended strictly for authorized security testing and network hygiene audits. It operates with several safety guards in place:
 *   It refuses public IP addresses outright; it only works on private and link-local networks.
 *   It requires the operator to type the target address manually to confirm intent, so nothing prints by accident.
 *   To avoid disruption during testing, it prints at most one notice per printer every 10 minutes.

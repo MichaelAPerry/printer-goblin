@@ -3,11 +3,11 @@ from dataclasses import replace
 
 import pytest
 
-from printer_gremlin import cli, net, safety, workflow
-from printer_gremlin.identify import Fingerprint
-from printer_gremlin.payloads import _page, pwg
-from printer_gremlin.payloads.notice import build_notice
-from printer_gremlin.protocols import ipp
+from printer_goblin import cli, net, safety, workflow
+from printer_goblin.identify import Fingerprint
+from printer_goblin.payloads import _page, pwg
+from printer_goblin.payloads.notice import build_notice
+from printer_goblin.protocols import ipp
 from tools.pwg_to_png import decode_rows, to_png
 
 

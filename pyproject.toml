@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "printer-gremlin"
+name = "printer-goblin"
 version = "0.1.0"
 description = "Printer security awareness and network segmentation testing utility (authorized use only)."
 readme = "README.md"
@@ -15,12 +15,12 @@ dependencies = ["segno>=1.5"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-printer-gremlin = "printer_gremlin.cli:main"
+printer-goblin = "printer_goblin.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["printer_gremlin*"]
+include = ["printer_goblin*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-printer_gremlin = ["assets/*.pbm", "assets/*.png"]
-"printer_gremlin.gui" = ["static/*.html", "static/*.js", "static/*.css"]
+printer_goblin = ["assets/*.pbm", "assets/*.png"]
+"printer_goblin.gui" = ["static/*.html", "static/*.js", "static/*.css"]

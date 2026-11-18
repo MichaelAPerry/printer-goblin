@@ -1,10 +1,10 @@
-# Printer Gremlin
+# Printer Goblin
 
-<p align="center"><img src="assets/gremlin-source.png" width="220" alt="Printer Gremlin Mascot"></p>
+<p align="center"><img src="assets/goblin-source.png" width="220" alt="Printer Goblin Mascot"></p>
 
-**Printer Gremlin** shows whether your printers can be reached from networks that absolutely shouldn't reach them. It does this by printing a friendly "YOU'VE BEEN GOBBED!" notice on the printer itself.
+**Printer Goblin** shows whether your printers can be reached from networks that absolutely shouldn't reach them. It does this by printing a friendly "YOU'VE BEEN GOBBED!" notice on the printer itself.
 
-It's not an attack tool. It's an audit tool. Think of it as a friendly gremlin popping out to check if your network segmentation is actually working. Printers are often forgotten when designing flat networks. If your guest Wi-Fi, IoT devices, or user workstations can reach a printer's ports, you have a segmentation gap. This matters especially for receipt printers on point-of-sale networks, where PCI DSS scoping rules apply.
+It's not an attack tool. It's an audit tool. Think of it as a friendly goblin popping out to check if your network segmentation is actually working. Printers are often forgotten when designing flat networks. If your guest Wi-Fi, IoT devices, or user workstations can reach a printer's ports, you have a segmentation gap. This matters especially for receipt printers on point-of-sale networks, where PCI DSS scoping rules apply.
 
 ## What It Does
 
@@ -13,7 +13,7 @@ The tool works in a strict, five-step sequence to keep things safe and clear:
 1.  **Discover**: It finds open printer ports (raw port 9100, IPP on 631, LPD on 515, or web interfaces on 80/443) within a private network range you choose.
 2.  **Identify**: It asks the printer what it is using via IPP, SNMP, and its web page—without printing anything yet.
 3.  **Preview**: Before committing to ink, it shows you exactly what the printout will look like.
-4.  **Print**: If authorized, it prints one notice featuring the mascot, a short friendly message, and a "What the gremlin saw" fact sheet listing the model, firmware, open ports, and findings like "Raw print port 9100 reachable." This also includes a QR code linking to a remediation guide.
+4.  **Print**: If authorized, it prints one notice featuring the mascot, a short friendly message, and a "What the goblin saw" fact sheet listing the model, firmware, open ports, and findings like "Raw print port 9100 reachable." This also includes a QR code linking to a remediation guide.
 5.  **Verify**: You save a "before" snapshot of what is reachable, fix your network, then check again from the same place. A PASS result means no printer ports were reachable from that zone anymore.
 
 ## Who Is This For?
@@ -51,23 +51,23 @@ python -m venv .venv
 pip install -e .
 ```
 
-Once installed, simply run `printer-gremlin` with no arguments to open the GUI in your web browser. It runs entirely on your own computer (`127.0.0.1`) and is protected by a one-time session token.
+Once installed, simply run `printer-goblin` with no arguments to open the GUI in your web browser. It runs entirely on your own computer (`127.0.0.1`) and is protected by a one-time session token.
 
 For those who prefer scripting or need to automate checks, the command line offers full control:
 
 ```bash
-printer-gremlin discover 192.168.50.0/24
-printer-gremlin identify 192.168.50.23
-printer-gremlin preview --format pdf -o notice.pdf
-printer-gremlin preview --format pwg --media a4 -o notice.pwg
-printer-gremlin baseline 192.168.50.23 --out before.json
-printer-gremlin demo 192.168.50.23 --yes-i-am-authorized
-printer-gremlin verify before.json
+printer-goblin discover 192.168.50.0/24
+printer-goblin identify 192.168.50.23
+printer-goblin preview --format pdf -o notice.pdf
+printer-goblin preview --format pwg --media a4 -o notice.pwg
+printer-goblin baseline 192.168.50.23 --out before.json
+printer-goblin demo 192.168.50.23 --yes-i-am-authorized
+printer-goblin verify before.json
 ```
 
 ## Built to be Polite
 
-Printer Gremlin is designed to prove a point without causing trouble:
+Printer Goblin is designed to prove a point without causing trouble:
 
 *   **Network Scope**: It only scans private and link-local networks. Public IP addresses are refused automatically.
 *   **Scan Limits**: Scans are limited to 1,024 addresses to keep scans small and quiet.

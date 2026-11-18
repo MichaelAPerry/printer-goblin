@@ -8,9 +8,9 @@ from threading import Thread
 
 import pytest
 
-from printer_gremlin import safety, workflow
-from printer_gremlin.gui.server import GremlinServer, Handler
-from printer_gremlin.identify import Fingerprint
+from printer_goblin import safety, workflow
+from printer_goblin.gui.server import GoblinServer, Handler
+from printer_goblin.identify import Fingerprint
 
 
 @pytest.fixture
@@ -65,8 +65,8 @@ def test_execute_one_job(localhost_tcp, tmp_path, local_plan):
 
 
 def test_gui_api(localhost_tcp, tmp_path, monkeypatch, local_plan):
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
-    with GremlinServer() as server:
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
+    with GoblinServer() as server:
         worker = Thread(target=server.serve_forever)
         worker.start()
         try:
@@ -84,7 +84,7 @@ def test_gui_api(localhost_tcp, tmp_path, monkeypatch, local_plan):
                 finally:
                     with_connection.close()
 
-            token = {"X-Gremlin-Token": server.token}
+            token = {"X-Goblin-Token": server.token}
             assert request("/")[0] == 200
             assert request("/api/baselines", {})[0] == 403
             assert request("/", Host="evil.example")[0] == 403
@@ -122,16 +122,16 @@ def test_gui_api(localhost_tcp, tmp_path, monkeypatch, local_plan):
 
 def test_gui_non_loopback_refused():
     with pytest.raises(ValueError, match="127.0.0.1"):
-        GremlinServer(("0.0.0.0", 0))
+        GoblinServer(("0.0.0.0", 0))
 
 
 def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
     from threading import Lock
 
-    monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
+    monkeypatch.setenv("PRINTER_GOBLIN_STATE", str(tmp_path))
     monkeypatch.setattr(workflow.net, "tcp_open", lambda ip, port, timeout, accurate=False: "open")
     monkeypatch.setattr(Handler, "log_message", lambda *args: None)
-    server = GremlinServer.__new__(GremlinServer)
+    server = GoblinServer.__new__(GoblinServer)
     server.server_port = 8000
     server.origin = "http://127.0.0.1:8000"
     server.token = "test-only-token"
@@ -144,7 +144,7 @@ def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
         headers = [f"{method} {path} HTTP/1.1", f"Host: {host}",
                    "Content-Type: application/json", f"Content-Length: {len(payload)}"]
         if token is not None:
-            headers.append(f"X-Gremlin-Token: {token}")
+            headers.append(f"X-Goblin-Token: {token}")
         if origin is not None:
             headers.append(f"Origin: {origin}")
         wire = "\r\n".join(headers).encode() + b"\r\n\r\n" + payload
@@ -226,7 +226,7 @@ def test_execute_serializes_concurrent_requests(tmp_path, local_plan, monkeypatc
 def test_gui_print_status_during_background_work(tmp_path, local_plan, monkeypatch):
     from threading import Event, Lock
 
-    server = GremlinServer.__new__(GremlinServer)
+    server = GoblinServer.__new__(GoblinServer)
     server.lock, server.print_jobs = Lock(), {}
     server.governor = safety.PrintGovernor(directory=tmp_path)
     plan = local_plan()
