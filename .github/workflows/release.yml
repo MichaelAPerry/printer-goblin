@@ -57,7 +57,7 @@ jobs:
             VERSION="v$(python -c 'from importlib.metadata import version; print(version("printer-goblin"))')"
           fi
           mkdir -p packaging/dist/release
-          cp "packaging/dist/printer-goblin${EXTENSION}" "packaging/dist/release/printer-goblin-${VERSION}-${PLATFORM}-${ARCH,,}${EXTENSION}"
+          cp "packaging/dist/printer-goblin${EXTENSION}" "packaging/dist/release/printer-goblin-${VERSION}-${PLATFORM}-$(echo "$ARCH" | tr "[:upper:]" "[:lower:]")${EXTENSION}"
       - name: Build wheel and source distribution
         if: matrix.platform == 'linux'
         run: |
