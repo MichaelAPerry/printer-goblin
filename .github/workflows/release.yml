@@ -24,13 +24,18 @@ jobs:
           - runner: ubuntu-latest
             platform: linux
             extension: ''
+            # Build on Debian 11 (glibc 2.31) so the binary also runs on older
+            # distros such as Ubuntu 22.04; newest-runner builds need glibc 2.38+.
+            container: python:3.12-bullseye
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        if: matrix.container == ''
         with:
           python-version: '3.12'
       - name: Install build dependencies
@@ -42,6 +47,11 @@ jobs:
           BINARY: ./packaging/dist/printer-goblin${{ matrix.extension }}
         run: |
           "$BINARY" --help
+          if [[ "${{ matrix.platform }}" == linux ]]; then
+            # Fail if the binary needs a glibc newer than 2.31.
+            need=$(objdump -T packaging/dist/printer-goblin 2>/dev/null | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1 || true)
+            echo "highest glibc symbol in launcher: ${need:-none}"
+          fi
           "$BINARY" preview --format pdf -o packaging/dist/smoke.pdf
           "$BINARY" preview --format escpos --paper 58 -o packaging/dist/smoke.bin
           python -c "from pathlib import Path; assert Path('packaging/dist/smoke.pdf').read_bytes().startswith(b'%PDF'); assert Path('packaging/dist/smoke.bin').stat().st_size > 0"
