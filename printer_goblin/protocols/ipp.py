@@ -11,7 +11,8 @@ from ..scope import resolve_target
 REQUESTED_ATTRIBUTES = (
     "printer-make-and-model", "printer-info", "document-format-supported", "printer-state",
     "printer-firmware-string-version", "printer-firmware-version", "printer-serial-number",
-    "media-default",
+    "media-default", "operations-supported", "uri-authentication-supported",
+    "uri-security-supported", "printer-uri-supported", "ipp-versions-supported",
 )
 _TEXT_TAGS = {0x41, 0x42, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49}
 _MAX_RESPONSE = 1024 * 1024
@@ -166,6 +167,15 @@ def query_printer(host: str, port: int = 631, path: str = "/ipp/print",
             raise OSError(f"Get-Printer-Attributes failed with IPP status 0x{status:04x}")
         return attributes, endpoint
     raise OSError(f"IPP printer path unavailable (HTTP {http_status})")
+
+
+def validate_job(host: str, document_format: str, port: int = 631, path: str = "/ipp/print",
+                 timeout: float = 5) -> int:
+    """Request RFC 8011 validation with operation attributes alone."""
+    host = str(resolve_target(host))
+    request = encode_request(0x0004, _uri(host, port, path), document_format=document_format)
+    status, _ = _checked_response(*_post(host, port, path, timeout, request))
+    return status
 
 
 def print_job(host: str, data: bytes, document_format: str, port: int = 631,

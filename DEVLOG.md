@@ -16,6 +16,8 @@
 | 2026-11-18 | codex | PyInstaller packaging + release workflow | kept; Claude built locally (sandbox had no PyPI): 7 MB Linux binary, GUI assets load, printed job 471 completed |
 | 2026-11-18 | claude | Renamed Printer Gremlin -> Printer Goblin everywhere (package printer_goblin, CLI printer-goblin, state dir, assets) | kept; Pages URL unchanged so printed QR codes stay valid. Entries above use the old name |
 
+| 2026-11-18 | codex | v0.2 paper-free assessment with IPP authorization checks, management reachability, TLS inspection, and firmware advisories | Working tree implementation and regression tests |
+
 ## Live test notes (2026-11-18, Brother MFC-L2700DW, home LAN, from WSL2)
 - Advertises only image/urf + image/pwg-raster (sgray_8, 300 dpi), copies 1-99, SNMP public, ports 9100/631/515/80/443.
 - First discovery after idle missed ports and once showed 9100/515 on the router (192.168.1.1) that were not open on re-test. Missed ports explained by printer deep sleep (now retried). The router reading is unexplained and not reproduced; treat as a WSL NAT artefact hypothesis, unconfirmed.
@@ -25,3 +27,4 @@
 - Optional mDNS/DNS-SD discovery (`_ipp._tcp`, `_pdl-datastream._tcp`).
 - Mascot is black-and-white everywhere (colour version dropped, 2026-11-18).
 - Decode the QR in CI (e.g. zbar) to verify the rendered payloads round-trip.
+- 2026-11-18 · claude · Review of v0.2 assessment: live run vs Brother MFC-L2700DW found Validate-Job OK (no auth), Telnet+FTP open, HTTPS 443 TLS 1.1 only. Fixes: TLSResult.modern (distinguish "legacy only"), strip ANSI/telnet IAC from banners, TELNET/FTP basis inferred, suppress IPP_NO_AUTH when UNAUTH_PRINT observed, replaced unverified advisory URLs with checked ones (Star Micronics dropped: no advisory page).

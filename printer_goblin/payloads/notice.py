@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from ..findings import Finding, findings
-from ..identify import Fingerprint
+from ..identify import MGMT_PORTS, Fingerprint
 
 DEFAULT_GUIDE_URL = "https://michaelaperry.github.io/printer-goblin/"
 
@@ -24,13 +24,15 @@ class Notice:
     mascot: bool = True
 
     def fact_lines(self) -> list[str]:
+        # Firmware already appears in the serial-redacted device section.
+        report = [item for item in self.findings if item.id != "FIRMWARE"][:6]
         return [FACT_HEADING, *(self.device or ["(not identified)"]), *self.services,
-                *(line for finding in self.findings
-                  for line in (f"[{finding.severity.upper()}] {finding.title}", finding.detail))]
+                *(line for finding in report
+                  for line in (f"[{finding.severity.upper()}] {finding.title}"[:84], finding.detail[:84]))]
 
 
 FACT_HEADING = "WHAT THE GOBLIN SAW"
-_SERVICE_NAMES = {9100: "raw", 631: "IPP", 515: "LPD", 80: "HTTP", 443: "HTTPS"}
+_SERVICE_NAMES = {9100: "raw", 631: "IPP", 515: "LPD", 80: "HTTP", 443: "HTTPS", **MGMT_PORTS}
 
 
 def service_lines(fp: Fingerprint) -> list[str]:
@@ -72,11 +74,14 @@ def build_notice(target: str, port: int, protocol: str, source: str,
     ]
     if note:
         facts.append(f"Assessor: {note[:60]}")
+    services = service_lines(fingerprint) if fingerprint else []
+    if len(services) > 5:
+        services = [*services[:4], f"{len(services) - 4} more TCP ports open"]
+    report = findings(fingerprint, source) if fingerprint else []
     return Notice(headline=HEADLINE, lines=lines + [""] + facts, url=guide_url,
                   footer=list(FOOTER),
                   device=device_lines(fingerprint) if fingerprint else [],
-                  services=service_lines(fingerprint) if fingerprint else [],
-                  findings=findings(fingerprint, source) if fingerprint else [])
+                  services=services, findings=report)
 
 
 # Wording is kept short so it fits a 32-column receipt.

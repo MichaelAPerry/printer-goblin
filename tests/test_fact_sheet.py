@@ -98,7 +98,7 @@ def test_fact_sheet_renderers(monkeypatch, image):
 
 
 def test_identify_records_responses_and_firmware(monkeypatch):
-    from printer_goblin.identify import identify, ipp, net, snmp
+    from printer_goblin.identify import identify, ipp, net, snmp, tlsprobe
 
     class Connection:
         def __init__(self, ip, port, timeout):
@@ -114,7 +114,9 @@ def test_identify_records_responses_and_firmware(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(net, "tcp_open", lambda ip, port, timeout, accurate=False: "open")
+    monkeypatch.setattr(net, "tcp_open", lambda ip, port, timeout, accurate=False:
+                        "open" if port in (80, 631) else "closed")
+    monkeypatch.setattr(tlsprobe, "probe", lambda ip, port: tlsprobe.TLSResult())
     monkeypatch.setattr("http.client.HTTPConnection", Connection)
     monkeypatch.setattr(snmp, "probe_printer", lambda ip: ({}, True))
     monkeypatch.setattr(ipp, "query_printer", lambda ip, timeout: (

@@ -6,6 +6,7 @@ import argparse
 import http.client
 import json
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -41,6 +42,8 @@ def _parser() -> argparse.ArgumentParser:
     fingerprint = sub.add_parser("identify", help="query a printer without printing")
     fingerprint.add_argument("target")
     fingerprint.add_argument("--json", action="store_true")
+    fingerprint.add_argument("--no-validate-job", action="store_true",
+                             help="skip the paper-free IPP Validate-Job check")
 
     preview = sub.add_parser("preview", help="render a notice to a local file")
     preview.add_argument("--format", choices=workflow.FORMATS, required=True)
@@ -136,7 +139,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             else:
                 print("[goblin] No open ports found.")
         elif args.command == "identify":
-            result = workflow.identify(args.target, probe=identify)
+            probe = partial(identify, validate_job=False) if args.no_validate_job else identify
+            result = workflow.identify(args.target, probe=probe)
             if args.json:
                 print(_json(result))
             else:
@@ -145,6 +149,34 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"Languages: {', '.join(result['languages']) or 'unknown'}")
                 if result['http_title']:
                     print(f"HTTP title: {result['http_title']!r}")
+                if result["firmware"]:
+                    print(f"Firmware: {result['firmware']!r}")
+                if result["validate_job_status"] is not None:
+                    print(f"Validate-Job status: 0x{result['validate_job_status']:04x}")
+                for name in ("printer-uri-supported", "uri-authentication-supported",
+                             "uri-security-supported", "operations-supported", "ipp-versions-supported"):
+                    if name in result["ipp_attrs"]:
+                        print(f"{name}: {result['ipp_attrs'][name]!r}")
+                for service in result["services"]:
+                    port = service.split()[0]
+                    if int(port) in result["mgmt_ports"]:
+                        banner = result["banners"].get(port)
+                        print(f"{service}" + (f" — banner {banner!r}" if banner else ""))
+                for port, tls in result["tls"].items():
+                    if not tls["version"]:
+                        print(f"TLS {port}: no TLS handshake")
+                        continue
+                    version = tls["version"] + ("" if tls["modern"] else " only")
+                    cipher = tls["cipher"] or ""
+                    print(f"TLS {port}: {version} {cipher} (legacy: {tls['legacy']})")
+                    if tls["self_signed"]:
+                        print("  Certificate issuer matches subject")
+                    if tls["not_after"]:
+                        expiry = " (expired)" if tls["expired"] else ""
+                        print(f"  Certificate expires {tls['not_after']}{expiry}")
+                for finding in result["findings"]:
+                    print(f"[{finding['severity'].upper()}] {finding['title']!r} ({finding['basis']})")
+                    print(f"  {finding['detail']}")
                 for reason in result['reasons']:
                     print(f"- {reason!r}")
         elif args.command == "preview":

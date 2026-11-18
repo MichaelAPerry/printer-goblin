@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import http.client
 import re
+import socket
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Optional
 
-from . import net, scope
+from . import net, safety, scope
 from .discovery import DEFAULT_PORTS
-from .protocols import ipp, snmp
+from .protocols import ipp, snmp, tlsprobe
+
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\xff[\xfb-\xfe].")  # terminal escapes, telnet IAC
+
+MGMT_PORTS = {
+    21: "FTP", 22: "SSH", 23: "Telnet", 445: "SMB", 5357: "WSD",
+    8080: "alt-HTTP", 8443: "alt-HTTPS",
+}
 
 _THERMAL = re.compile(
     r"\b(?:Star\s+TSP|TSP\d|mC-Print|Bixolon|SRP-|"
@@ -44,6 +53,10 @@ class Fingerprint:
     snmp_ok: bool = False
     http_ok: bool = False
     firmware: Optional[str] = None
+    validate_job_status: Optional[int] = None
+    mgmt_ports: list[int] = field(default_factory=list)
+    banners: dict[int, str] = field(default_factory=dict)
+    tls: dict[int, tlsprobe.TLSResult] = field(default_factory=dict)
 
     @property
     def model(self) -> Optional[str]:
@@ -156,23 +169,66 @@ def _add_evidence(result: Fingerprint) -> None:
         result.reasons.append("No printer model or supported document format recognized")
 
 
-def identify(ip: str) -> Fingerprint:
+def _passive_banner(ip: str, port: int) -> str:
+    deadline = time.monotonic() + 2
+    try:
+        with socket.create_connection((ip, port), timeout=2) as sock:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return ""
+            sock.settimeout(remaining)
+            data = sock.recv(512)
+    except OSError:
+        return ""
+    text = _ANSI.sub("", data.decode("latin-1"))
+    return "".join(ch for ch in text if 32 <= ord(ch) < 127).strip()[:120]
+
+
+def _validate(result: Fingerprint) -> None:
+    if not result.ipp_ok or 0x0004 not in result.ipp_attrs.get("operations-supported", []):
+        return
+    document_format = next(
+        (value for value in result.ipp_attrs.get("document-format-supported", [])
+         if isinstance(value, str) and value.strip()), None
+    )
+    if document_format is None:
+        return
+    try:
+        result.validate_job_status = ipp.validate_job(
+            result.ip, document_format, path=result.ipp_path or "/ipp/print", timeout=2
+        )
+    except (OSError, ValueError, http.client.HTTPException):
+        pass
+    safety.PrintGovernor().audit("validate-job", target=result.ip, status=result.validate_job_status)
+
+
+def identify(ip: str, *, validate_job: bool = True, assess: bool = True) -> Fingerprint:
     """Probe TCP ports and query IPP, SNMP, and HTTP without printing."""
     ip = str(scope.resolve_target(str(ip)))
     result = Fingerprint(ip)
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=6) as pool:
         snmp_future = pool.submit(snmp.probe_printer, ip)
-        states = net.probe_with_retry([(ip, port) for port in DEFAULT_PORTS], 0.8)
-        result.ports = [port for port in DEFAULT_PORTS if states[(ip, port)] == "open"]
+        ports = (*DEFAULT_PORTS, *MGMT_PORTS) if assess else DEFAULT_PORTS
+        states = net.probe_with_retry([(ip, port) for port in ports], 0.8)
+        result.ports = [port for port in ports if states[(ip, port)] == "open"]
+        result.mgmt_ports = [port for port in MGMT_PORTS if port in result.ports]
         ipp_future = pool.submit(_ipp_attributes, ip) if 631 in result.ports else None
         http_future = pool.submit(_http_title, ip) if 80 in result.ports else None
-        result.snmp_values, result.snmp_ok = snmp_future.result()
+        banners = {port: pool.submit(_passive_banner, ip, port)
+                   for port in (21, 23) if port in result.mgmt_ports}
+        tls = {port: pool.submit(tlsprobe.probe, ip, port)
+               for port in (443, 631, 8443) if assess and port in result.ports}
         if ipp_future is not None:
             result.ipp_attrs, result.ipp_path = ipp_future.result()
             result.ipp_ok = result.ipp_path is not None
             result.firmware = (result._ipp_string("printer-firmware-string-version")
                                or result._ipp_string("printer-firmware-version"))
+            if assess and validate_job:
+                _validate(result)
         if http_future is not None:
             result.http_title, result.http_ok = http_future.result()
+        result.snmp_values, result.snmp_ok = snmp_future.result()
+        result.banners = {port: banner for port, future in banners.items() if (banner := future.result())}
+        result.tls = {port: future.result() for port, future in tls.items()}
     _add_evidence(result)
     return result

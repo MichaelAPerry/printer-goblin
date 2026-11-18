@@ -112,7 +112,10 @@ form('identify-form', async () => {
   for (const [label, value] of Object.entries({
     Address: device.ip, Type: device.kind, Model: device.model,
     Firmware: device.firmware, Serial: device.serial,
-    Services: device.services.join(', '), Languages: device.languages.join(', ')
+    Services: device.services.join(', '), Languages: device.languages.join(', '),
+    TLS: Object.entries(device.tls || {}).map(([port, tls]) =>
+      port + ' ' + (tls.version || 'no modern handshake') + ' (legacy ' + tls.legacy + ')'
+    ).join(', ')
   })) {
     facts.append(element('dt', label), element('dd', value || '—'));
   }

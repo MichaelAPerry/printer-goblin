@@ -8,6 +8,7 @@ import json
 import secrets
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
@@ -17,6 +18,7 @@ import segno
 from .. import safety, workflow
 from ..assets import ASSET_DIR
 from ..discovery import DEFAULT_PORTS
+from ..identify import identify
 from ..payloads import pwg
 
 _LOOPBACK = "127.0.0.1"
@@ -65,10 +67,11 @@ class GoblinServer(ThreadingHTTPServer):
 
     def _discover(self, cidr, ports):
         report = workflow.discover(cidr, ports)
+        fingerprint = partial(identify, assess=False)
         with ThreadPoolExecutor(max_workers=8) as pool:
             for host, device in zip(report["hosts"], pool.map(
-                    workflow.identify, (host["ip"] for host in report["hosts"]))):
-                host.update(kind=device["kind"], model=device["model"])
+                    fingerprint, (host["ip"] for host in report["hosts"]))):
+                host.update(kind=device.kind, model=device.model)
         return report
 
     def _baseline_path(self, name):
