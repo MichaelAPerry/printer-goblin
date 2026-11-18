@@ -161,7 +161,8 @@ def test_lpd_and_http(fake):
 @pytest.mark.parametrize("fake", ["office-locked"], indirect=True)
 def test_locked_profile_has_no_other_services(fake):
     assert sorted(fake.port_map) == [631]
-    assert net.tcp_open(HOST, 9100, 0.5) == "closed"
+    # Windows reports a refusal only after ~2 s of SYN retries; accurate mode waits for it.
+    assert net.tcp_open(HOST, 9100, 0.5, accurate=True) == "closed"
 
 
 def test_verify_reports_exposed(fake, tmp_path):

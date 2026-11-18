@@ -107,7 +107,7 @@ def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
         listener.bind((ip, 0))
         port = listener.getsockname()[1]
         listener.listen()
-        listener.settimeout(2)
+        listener.settimeout(20)  # identify runs first; refused probes are slow on Windows
 
         def receive_job():
             # Reachability probes (connect, then close) may arrive before the job itself.
