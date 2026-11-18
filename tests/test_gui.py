@@ -122,7 +122,7 @@ def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
     from threading import Lock
 
     monkeypatch.setenv("PRINTER_GREMLIN_STATE", str(tmp_path))
-    monkeypatch.setattr(workflow.net, "tcp_open", lambda ip, port, timeout: "open")
+    monkeypatch.setattr(workflow.net, "tcp_open", lambda ip, port, timeout, accurate=False: "open")
     monkeypatch.setattr(Handler, "log_message", lambda *args: None)
     server = GremlinServer.__new__(GremlinServer)
     server.server_port = 8000

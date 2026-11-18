@@ -134,7 +134,7 @@ def test_verify_transitions_without_sockets(monkeypatch, tmp_path):
 
     ip = "127.0.0.1"
     states = {9100: "open", 631: "open", 515: "closed", 80: "filtered"}
-    monkeypatch.setattr(net, "tcp_open", lambda host, port, timeout: states[port])
+    monkeypatch.setattr(net, "tcp_open", lambda host, port, timeout, accurate=False: states[port])
     monkeypatch.setattr(net, "source_ip", lambda host: ip)
     path = tmp_path / "baseline.json"
     verify.baseline([ip], states, path, "before")
