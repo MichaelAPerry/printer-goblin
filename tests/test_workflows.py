@@ -110,9 +110,13 @@ def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
         listener.settimeout(2)
 
         def receive_job():
-            connection, _ = listener.accept()
-            with connection, connection.makefile("rb") as stream:
-                jobs.append(stream.read())
+            # Reachability probes (connect, then close) may arrive before the job itself.
+            while not jobs:
+                connection, _ = listener.accept()
+                with connection, connection.makefile("rb") as stream:
+                    data = stream.read()
+                if data:
+                    jobs.append(data)
 
         receiver = Thread(target=receive_job)
         receiver.start()

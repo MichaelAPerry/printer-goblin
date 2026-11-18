@@ -162,11 +162,11 @@ class FakePrinter:
                 self._serve_tcp(515, _lpd_handler(self))
             if p.snmp is not None:
                 self._serve_snmp()
-            # A bound-but-not-listening port refuses connections deterministically.
-            holder = socket.socket(self._family(), socket.SOCK_STREAM)
-            holder.bind((self.host, 0))
-            self._holders.append(holder)
-            self.closed_port = holder.getsockname()[1]
+            # Borrow a free ephemeral port and release it: nothing is bound there, so every OS
+            # answers with a refusal (a bound-but-not-listening socket times out on macOS/Windows).
+            with socket.socket(self._family(), socket.SOCK_STREAM) as probe:
+                probe.bind((self.host, 0))
+                self.closed_port = probe.getsockname()[1]
         except BaseException:
             self.stop()
             raise
