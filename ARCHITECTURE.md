@@ -35,9 +35,10 @@ printer_goblin/
   transports.py   raw 9100 (AppSocket/JetDirect) and IPP Print-Job
   verify.py       before/after reachability baseline and comparison
   report.py       paper-free assessment, serial masking, evidence digest, and HTML/Markdown export
+  fleet.py        range-wide paper-free assessment: discover + identify per host, prevalence, ranked recommendations, HTML/MD/JSON/CSV
   workflow.py     shared assessment, rendering plans, guarded submission, and audit
   gui/            loopback HTTP server, token-protected API, and static browser interface
-  cli.py          discover / identify / report / preview / demo / baseline / snapshot / verify / gui
+  cli.py          discover / identify / report / assess / preview / demo / baseline / snapshot / verify / gui
 ```
 
 ## Safety design
@@ -45,6 +46,7 @@ printer_goblin/
 * **Scope:** RFC 1918, RFC 6598, link-local and IPv6 ULA/link-local only. Not configurable from the CLI.
 * **No PJL and nothing sent to 9100 during identification.** Raw 9100 is checked with TCP connect alone. Identification uses the existing SNMP GET with community `public` and HTTP GET without credentials.
 * **IPP Validate-Job:** Used only when the printer advertises the operation and a document format. RFC 8011 validation sends operation attributes alone and creates no job. Results go to the audit log. The CLI can skip this check with `--no-validate-job`.
+* **Fleet assessment:** `assess` composes the connect-only discovery sweep with the paper-free identify (same scope rules, /22 cap, at most 4 hosts in parallel). `fleet.py` imports no transport and no print workflow, and a test blocks `send_raw`, `send_ipp` and `print_job` while it runs. Per-host failures are recorded, not fatal; serials are masked as in single-printer reports.
 * **Management services:** Identify adds TCP connect checks on management ports. FTP and Telnet may supply server-first banners, capped at 512 bytes and two seconds. Discovery keeps its existing default port list.
 * **TLS inspection:** Open ports 443, 631, and 8443 get handshake-only checks with certificate verification disabled. No application data or credentials are sent. Certificate name equality indicates self-issuance. A separate handshake checks TLS 1.0/1.1 when local OpenSSL supports it.
 * **Unknown device + auto format = refuse.** The operator must choose a format explicitly.

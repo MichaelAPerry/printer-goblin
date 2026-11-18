@@ -301,25 +301,33 @@ def _audit_html(audit):
     return "<ol>" + "".join(rows) + "</ol>"
 
 
-def render_html(report) -> str:
-    """Render a standalone HTML document with an extractable JSON appendix."""
+def document(title, subtitle, body, extra_css="") -> str:
+    """Wrap pre-escaped body HTML in the shared report page: strict CSP, CSS and mascot header."""
     mascot = base64.b64encode((ASSET_DIR / "goblin_256.png").read_bytes()).decode("ascii")
-    summary = "".join(f"<dt>{_html(label)}</dt><dd>{_html(value)}</dd>"
-                      for label, value in _summary(report))
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="{_html(HTML_CSP)}">
-<title>Printer Goblin assessment report</title>
-<style>{_REPORT_CSS}</style>
+<title>{_html(title)}</title>
+<style>{_REPORT_CSS}{extra_css}</style>
 </head>
 <body>
 <header><img src="data:image/png;base64,{mascot}" width="72" height="72" alt="Printer Goblin mascot">
-<div><h1>Printer Goblin assessment report</h1>
-<p>Paper-free printer exposure assessment · authorized testing only</p></div></header>
-<div class="summary"><dl>{summary}</dl><p class="bottom">{_html(report['bottom_line'])}</p></div>
+<div><h1>{_html(title)}</h1>
+<p>{_html(subtitle)}</p></div></header>
+{body}
+</body>
+</html>
+"""
+
+
+def render_html(report) -> str:
+    """Render a standalone HTML document with an extractable JSON appendix."""
+    summary = "".join(f"<dt>{_html(label)}</dt><dd>{_html(value)}</dd>"
+                      for label, value in _summary(report))
+    body = f"""<div class="summary"><dl>{summary}</dl><p class="bottom">{_html(report['bottom_line'])}</p></div>
 <section><h2>Findings</h2>
 <table><thead><tr><th>Severity</th><th>Finding</th><th>Basis</th><th>Detail</th><th>Remediation</th></tr></thead>
 <tbody>{_finding_rows(report['findings'])}</tbody></table></section>
@@ -331,10 +339,9 @@ def render_html(report) -> str:
 <p>SHA-256 <code>{_html(report['evidence_sha256'])}</code></p>
 <p>To check the digest, parse the JSON below, serialize it with sorted keys, ASCII escaping
 and no separator whitespace, and hash the UTF-8 bytes.</p>
-<pre id="evidence-json">{_html(_json(_sections(report)))}</pre></section>
-</body>
-</html>
-"""
+<pre id="evidence-json">{_html(_json(_sections(report)))}</pre></section>"""
+    return document("Printer Goblin assessment report",
+                    "Paper-free printer exposure assessment · authorized testing only", body)
 
 
 def _markdown(value):

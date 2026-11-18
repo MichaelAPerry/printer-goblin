@@ -69,6 +69,10 @@ printer-goblin verify before.json
 
 Run `printer-goblin report 192.168.50.23 --baseline before.json` or select **Download report** after **Identify** in the GUI. The report runs a fresh, paper-free assessment and saves a self-contained HTML file with findings, remediation links, serial-masked evidence, and matching local audit events. Omit `--baseline` to skip isolation verification. Use `--format md` for tickets, `--format json` for structured data, or `--no-validate-job` to skip the IPP authorization check.
 
+## Assess a whole fleet
+
+`printer-goblin assess 192.168.50.0/24` discovers printers in the range (same private-only scope and /22 limit as `discover`), runs the paper-free assessment on each (at most four at a time), and writes one consolidated report: device table, how common each finding is, and ranked configuration recommendations such as "Turn off Telnet on 3 of 20 printers". Nothing is printed on any device. Choose `--format html|md|json|csv`, `--out PATH`, `--ports`, or `--no-validate-job`. In the GUI, use **Assess all (no printing)** after **Discover**, then download the report.
+
 ## Try it without a printer
 
 Printer Goblin ships a fake printer for demos and tests. It listens on loopback only, and the normal safety checks still apply (typed confirmation, `--yes-i-am-authorized`, cooldown, audit log).

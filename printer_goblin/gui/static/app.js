@@ -9,6 +9,8 @@ let identified = null;
 let mascotAvailable = false;
 let planning = false;
 let printing = false;
+let lastDiscovery = null;
+let fleetJob = null;
 
 function element(tag, value, className) {
   const node = document.createElement(tag);
@@ -69,7 +71,8 @@ form('discover-form', async () => {
   const status = byId('discover-status');
   status.textContent = 'Discovery running…';
   try {
-    const job = await api('discover', {cidr: byId('cidr').value, ports: ports()});
+    const request = {cidr: byId('cidr').value, ports: ports()};
+    const job = await api('discover', request);
     let result;
     do {
       await new Promise(resolve => setTimeout(resolve, 350));
@@ -95,8 +98,13 @@ form('discover-form', async () => {
       });
       appendRow(byId('hosts'), [pick, address, host.open_ports.join(', '), host.kind, host.model || '—']);
     }
+    lastDiscovery = request;
+    fleetJob = null;
+    byId('assess').hidden = !result.hosts.length;
+    byId('download-fleet').hidden = true;
+    byId('assess-status').textContent = '';
     status.textContent = result.hosts.length
-      ? result.hosts.length + ' hosts with open ports.' : 'No open ports found.';
+      ? result.hosts.length + (result.hosts.length === 1 ? ' host' : ' hosts') + ' with open ports.' : 'No open ports found.';
   } catch (error) {
     status.textContent = 'Discovery failed.';
     throw error;
@@ -141,6 +149,49 @@ byId('download-report').addEventListener('click', async event => {
     const link = element('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'goblin-report.html';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch (error) { banner(error); }
+  finally { button.disabled = false; }
+});
+
+byId('assess-all').addEventListener('click', async event => {
+  if (!lastDiscovery) return;
+  const button = event.currentTarget;
+  const status = byId('assess-status');
+  button.disabled = true;
+  byId('download-fleet').hidden = true;
+  banner();
+  try {
+    status.textContent = 'Assessing printers (nothing is printed)…';
+    const job = await api('assess', lastDiscovery);
+    let result;
+    do {
+      await new Promise(resolve => setTimeout(resolve, 700));
+      result = await api('assess-poll', job);
+      if (result.status === 'running' && result.total) {
+        status.textContent = 'Assessed ' + result.done + ' of ' + result.total + ' printers…';
+      }
+    } while (result.status === 'running');
+    fleetJob = job;
+    status.textContent = result.bottom_line + ' Fleet risk: ' + result.overall_risk + '.';
+    byId('download-fleet').hidden = false;
+  } catch (error) {
+    status.textContent = 'Fleet assessment failed.';
+    banner(error);
+  } finally { button.disabled = false; }
+});
+
+byId('download-fleet').addEventListener('click', async event => {
+  if (!fleetJob) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  banner();
+  try {
+    const blob = await api('assess-report', fleetJob, true);
+    const link = element('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'goblin-fleet-report.html';
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   } catch (error) { banner(error); }

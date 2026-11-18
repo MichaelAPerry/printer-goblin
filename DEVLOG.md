@@ -21,6 +21,8 @@
 | 2026-11-18 | codex | Client assessment report with HTML, Markdown, and JSON exports | Added CLI and token-protected GUI download with serial masking and an evidence digest |
 | 2026-11-18 | local (qwen3.5:9b) | Per-finding remediation page docs/findings.md (18 anchors) | kept with accuracy fixes (removed 'inject malicious code'/'execute code' claims, LPD/LPR have no auth, firmware is not known to be outdated, auth-required reframed as good news) |
 | 2026-11-18 | claude | Review of report + deep links | fixed severity-constant clash, ticket-friendly Markdown escaping, report design pass (summary grid, B&W severity badges, readable evidence); verified on Brother |
+| 2026-11-18 | sonnet (subagent) | Fleet assessment + consolidated report | kept |
+| 2026-11-18 | claude | Review + live fleet run (home /24) | Codex declined the fleet task (automated Validate-Job across a range); built by Sonnet instead. Live run counted router/NAS web ports as printers -> hosts with no print-protocol port and no printer evidence now listed as 'Other hosts'; added fleet-assess audit event; GUI flow verified in headless Chromium |
 
 ## Live test notes (2026-11-18, Brother MFC-L2700DW, home LAN, from WSL2)
 - Advertises only image/urf + image/pwg-raster (sgray_8, 300 dpi), copies 1-99, SNMP public, ports 9100/631/515/80/443.

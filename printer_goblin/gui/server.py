@@ -16,7 +16,7 @@ from threading import Lock
 import segno
 
 from .. import report as assessment_report
-from .. import safety, workflow
+from .. import fleet, safety, workflow
 from ..assets import ASSET_DIR
 from ..discovery import DEFAULT_PORTS
 from ..identify import identify
@@ -60,6 +60,7 @@ class GoblinServer(ThreadingHTTPServer):
         self.worker = ThreadPoolExecutor(max_workers=1)
         self.jobs = {}
         self.print_jobs = {}
+        self.fleet_jobs = {}
         self.plans = {}
 
     def server_close(self):
@@ -117,6 +118,43 @@ class GoblinServer(ThreadingHTTPServer):
             if job is None:
                 raise ValueError("Unknown discovery job.")
             return {"status": "done", **job.result()} if job.done() else {"status": "running"}
+        if route == "/api/assess":
+            cidr, ports = _string(body, "cidr"), _ports(body)
+            progress = {"done": 0, "total": 0}
+
+            def update(done, total, entry):
+                with self.lock:
+                    progress.update(done=done, total=total)
+
+            with self.lock:
+                if any(not job.done() for job, _ in self.fleet_jobs.values()):
+                    raise ValueError("A fleet assessment is already running.")
+                if len(self.fleet_jobs) >= 4:
+                    del self.fleet_jobs[next(iter(self.fleet_jobs))]
+                job_id = secrets.token_hex(12)
+                job = self.worker.submit(partial(fleet.assess_fleet, cidr, ports=ports, on_progress=update))
+                self.fleet_jobs[job_id] = (job, progress)
+            return {"job_id": job_id}
+        if route in ("/api/assess-poll", "/api/assess-report"):
+            with self.lock:
+                saved = self.fleet_jobs.get(_string(body, "job_id"))
+                if saved is None:
+                    raise ValueError("Unknown fleet assessment.")
+                job, progress = saved
+                running = not job.done()
+                snapshot = dict(progress)
+            if route == "/api/assess-poll":
+                if running:
+                    return {"status": "running", **snapshot}
+                result = job.result()
+                return {"status": "done", "range": result["range"], "host_count": result["host_count"],
+                        "error_count": result["error_count"], "overall_risk": result["overall_risk"],
+                        "bottom_line": result["bottom_line"]}
+            if running:
+                raise ValueError("The fleet assessment is still running.")
+            result = job.result()
+            return (fleet.render_html(result).encode("utf-8"), "text/html; charset=utf-8",
+                    fleet.fleet_filename(result, "html"))
         if route == "/api/identify":
             return workflow.identify(_string(body, "target"))
         if route == "/api/report":

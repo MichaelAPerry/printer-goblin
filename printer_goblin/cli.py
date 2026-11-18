@@ -12,7 +12,7 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
-from . import discovery, emulator, net, report as assessment, safety, workflow
+from . import discovery, emulator, fleet, net, report as assessment, safety, workflow
 from .verify import EXIT_CODES
 from .identify import Fingerprint, identify
 from .payloads.notice import DEFAULT_GUIDE_URL, build_notice
@@ -56,6 +56,14 @@ def _parser() -> argparse.ArgumentParser:
     report.add_argument("--out", type=Path)
     report.add_argument("--format", choices=("html", "md", "json"), default="html")
     report.add_argument("--no-validate-job", action="store_true",
+                        help="skip the paper-free IPP Validate-Job check")
+
+    assess = sub.add_parser("assess", help="assess every printer in a range and write one report")
+    assess.add_argument("cidr", nargs="?")
+    assess.add_argument("--ports", nargs="+", type=_ports)
+    assess.add_argument("--out", type=Path)
+    assess.add_argument("--format", choices=tuple(fleet.RENDERERS), default="html")
+    assess.add_argument("--no-validate-job", action="store_true",
                         help="skip the paper-free IPP Validate-Job check")
 
     preview = sub.add_parser("preview", help="render a notice to a local file")
@@ -168,9 +176,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             stack.enter_context(net.port_overrides(printer.overrides(), host))
             if args.command in ("identify", "demo", "report"):
                 args.target = host
+            elif args.command == "assess":
+                args.cidr = args.cidr or f"{host}/32"
             elif args.command in ("baseline", "snapshot"):
                 args.targets = [host]
             _fake_printer_hint(printer, standalone=False)
+        elif (args.command == "assess" and not args.cidr):
+            print("[goblin] A CIDR range is required (or use --fake-printer PROFILE).", file=sys.stderr)
+            return 2
         elif (args.command in ("identify", "demo", "report") and not args.target) or (
                 args.command in ("baseline", "snapshot") and not args.targets):
             print("[goblin] A target is required (or use --fake-printer PROFILE).", file=sys.stderr)
@@ -240,6 +253,20 @@ def main(argv: Optional[list[str]] = None) -> int:
             render = {"html": assessment.render_html, "md": assessment.render_markdown, "json": _json}
             output = args.out or Path(assessment.report_filename(result, args.format))
             output.write_text(render[args.format](result) + "\n", encoding="utf-8")
+            print(output)
+        elif args.command == "assess":
+            def show_progress(done, total, entry):
+                state = f"error: {entry['error']}" if entry["error"] else (
+                    f"{entry['kind']}{' (unconfirmed)' if entry['unconfirmed'] else ''}, "
+                    f"risk {entry['overall_risk']}")
+                print(f"[goblin] {done}/{total} {entry['ip']} {state}", file=sys.stderr, flush=True)
+
+            result = fleet.assess_fleet(
+                args.cidr, ports=_selected_ports(args), validate_job=not args.no_validate_job,
+                on_progress=show_progress)
+            output = args.out or Path(fleet.fleet_filename(result, args.format))
+            output.write_text(fleet.RENDERERS[args.format](result) + ("" if args.format == "csv" else "\n"),
+                              encoding="utf-8", newline="")
             print(output)
         elif args.command == "preview":
             example = None
