@@ -16,11 +16,11 @@ Each section below matches one finding on a Printer Goblin fact sheet or report.
 
 Menu names differ by vendor, so these steps describe settings in general terms. Check your printer's admin guide for the exact path.
 
-## Printer accepts print jobs without login {#unauth-print}
+## Printer approved a print job without login {#unauth-print}
 
 **What it means:** The goblin asked the printer whether it would accept a job (an IPP "Validate-Job" check, which prints nothing), and the printer said yes without asking for a login.
 
-**Why it matters:** Anyone who can reach the printer from this network can print to it: spam, fake notices, or simply wasted paper and toner.
+**Why it matters:** Validate-Job is a dry run, so it doesn't prove a real job would print: a few printers ask for credentials only when a job is actually submitted. Usually, though, a printer that approves the check will also print, and anyone who can reach it from this network could send spam, fake notices, or simply waste paper and toner. Printer Goblin's one-page demo confirms it for certain.
 
 **How to fix:**
 - Restrict network access so only your print server or the networks that should print can reach the printer.

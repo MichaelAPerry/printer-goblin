@@ -14,7 +14,7 @@ The tool works in a strict, five-step sequence to keep things safe and clear:
 2.  **Identify**: It asks the printer what it is using via IPP, SNMP, and its web page—without printing anything yet.
 3.  **Preview**: Before committing to ink, it shows you exactly what the printout will look like.
 4.  **Print**: If authorized, it prints one notice featuring the mascot, a short friendly message, and a "What the goblin saw" fact sheet listing the model, firmware, open ports, and findings like "Raw print port 9100 reachable." This also includes a QR code linking to a remediation guide.
-5.  **Verify**: You save a "before" snapshot of what is reachable, fix your network, then check again from the same place. A PASS result means no printer ports were reachable from that zone anymore.
+5.  **Verify**: You save a "before" snapshot of what is reachable, fix your network, then check again from the same place. Each port in the baseline has an expectation: `deny` (the default, which should become unreachable) or `allow` (for example, IPP that the print server's network is meant to reach, set with `--allow 631`). A PASS means every denied port is now unreachable and every allowed port still answers. EXPOSED means a denied port is still reachable, and OVER-BLOCKED means an allowed port stopped answering. INCONCLUSIVE means the printer may simply have been off, so there was no proof the silence came from the network.
 
 ## Who Is This For?
 

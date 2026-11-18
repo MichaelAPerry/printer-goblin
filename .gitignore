@@ -6,3 +6,5 @@ goblin-out/
 *.baseline.json
 
 tools/out/
+build/
+dist/

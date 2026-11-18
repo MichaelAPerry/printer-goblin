@@ -42,8 +42,9 @@ def _ipp_findings(fp: Fingerprint) -> list[Finding]:
     report = []
     status = fp.validate_job_status
     if status is not None and 0 <= status <= 0x00FF:
-        report.append(Finding("UNAUTH_PRINT", "high", "Printer accepts print jobs without login",
-                              "Validate-Job succeeded with no credentials (nothing was printed).",
+        report.append(Finding("UNAUTH_PRINT", "high", "Printer approved a print job without login",
+                              "IPP Validate-Job passed with no credentials (nothing printed). "
+                              "Likely: a real job would print too.",
                               "observed"))
     elif status in (0x0401, 0x0402, 0x0403):
         report.append(Finding("IPP_AUTH_REQUIRED", "info", "IPP printing requires authorization",
