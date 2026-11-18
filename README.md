@@ -65,6 +65,19 @@ printer-goblin demo 192.168.50.23 --yes-i-am-authorized
 printer-goblin verify before.json
 ```
 
+## Try it without a printer
+
+Printer Goblin ships a fake printer for demos and tests. It listens on loopback only, and the normal safety checks still apply (typed confirmation, `--yes-i-am-authorized`, cooldown, audit log).
+
+```bash
+printer-goblin --fake-printer office-open identify
+printer-goblin --fake-printer office-open demo --yes-i-am-authorized
+printer-goblin --fake-printer office-open baseline --out demo.json   # then verify in the same way
+printer-goblin fake-printer --profile receipt                        # run it in the foreground and watch traffic
+```
+
+Profiles: `office-open` (IPP Everywhere, SNMP, 9100/515/80), `office-locked` (IPP only, refuses jobs with "not authorized"), and `receipt` (Epson TM-style, SNMP and 9100 only). Demo mode is a CLI flag only; the GUI can be started with it (`printer-goblin --fake-printer office-open gui`) and pointed at `127.0.0.1`.
+
 ## Built to be Polite
 
 Printer Goblin is designed to prove a point without causing trouble:

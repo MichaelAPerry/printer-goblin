@@ -89,7 +89,7 @@ class _Title(HTMLParser):
 
 
 def _http_title(ip: str) -> tuple[Optional[str], bool]:
-    connection = http.client.HTTPConnection(ip, 80, timeout=2)
+    connection = http.client.HTTPConnection(ip, net.actual_port(ip, 80), timeout=2)
     responded = False
     try:
         connection.request("GET", "/")

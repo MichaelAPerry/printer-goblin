@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import http.client
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
-from . import discovery, safety, workflow
+from . import discovery, emulator, net, safety, workflow
 from .verify import EXIT_CODES
 from .identify import Fingerprint, identify
 from .payloads.notice import DEFAULT_GUIDE_URL, build_notice
@@ -31,6 +33,9 @@ def _ports(value: str) -> list[int]:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="printer-goblin")
+    parser.add_argument("--fake-printer", metavar="PROFILE", choices=sorted(emulator.PROFILES),
+                        help="demo mode: start an in-process fake printer "
+                             f"({', '.join(sorted(emulator.PROFILES))}) and target it at 127.0.0.1")
     sub = parser.add_subparsers(dest="command", required=True)
 
     discover = sub.add_parser("discover", help="find open printer ports within scope")
@@ -39,7 +44,7 @@ def _parser() -> argparse.ArgumentParser:
     discover.add_argument("--json", action="store_true")
 
     fingerprint = sub.add_parser("identify", help="query a printer without printing")
-    fingerprint.add_argument("target")
+    fingerprint.add_argument("target", nargs="?")
     fingerprint.add_argument("--json", action="store_true")
 
     preview = sub.add_parser("preview", help="render a notice to a local file")
@@ -49,7 +54,7 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--port", type=_port, default=9100)
 
     demo = sub.add_parser("demo", help="print one authorized notice")
-    demo.add_argument("target")
+    demo.add_argument("target", nargs="?")
     demo.add_argument("--via", choices=("raw", "ipp"))
     demo.add_argument("--format", choices=("auto", *workflow.FORMATS), default="auto")
     demo.add_argument("--port", type=_port)
@@ -63,6 +68,9 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--media", choices=("letter", "a4"), default="letter")
     preview.add_argument("--sample", action="store_true")
 
+    fake = sub.add_parser("fake-printer", help="run a fake printer in the foreground")
+    fake.add_argument("--profile", choices=sorted(emulator.PROFILES), default="office-open")
+
     gui = sub.add_parser("gui", help="open the local Printer Goblin interface")
     gui.add_argument("--port", type=int, default=0)
     gui.add_argument("--no-browser", action="store_true")
@@ -70,7 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     baseline = sub.add_parser("baseline", help="save current TCP reachability")
     snapshot = sub.add_parser("snapshot", help="save a liveness reference from an allowed network")
     for command in (baseline, snapshot):
-        command.add_argument("targets", nargs="+")
+        command.add_argument("targets", nargs="*")
         command.add_argument("--out", required=True, type=Path)
         command.add_argument("--label", default="")
         command.add_argument("--ports", nargs="+", type=_ports)
@@ -109,6 +117,21 @@ def _print_verify(report: dict) -> None:
         print(f"  {report['liveness_note']}")
 
 
+def _fake_printer_hint(printer: emulator.FakePrinter, *, standalone: bool) -> None:
+    ports = ", ".join(f"{logical}->{actual}" for logical, actual in printer.port_map.items())
+    print(f"[goblin] Fake printer '{printer.profile_name}' on {printer.host} (logical->actual ports: {ports})")
+    if standalone:
+        print("Port overrides live inside the Printer Goblin process, so drive it with:")
+        print(f"  printer-goblin --fake-printer {printer.profile_name} identify")
+        print(f"  printer-goblin --fake-printer {printer.profile_name} demo --yes-i-am-authorized")
+        if 80 in printer.port_map:
+            print(f"Other tools can use the real ports, e.g. curl http://{printer.host}:{printer.port_map[80]}/")
+        print("Press Ctrl+C to stop; everything received is logged below.", flush=True)
+    else:
+        print("[goblin] Demo mode: the target is 127.0.0.1. Safety confirmation and cooldown still apply.",
+              flush=True)
+
+
 def _json(value: object) -> str:
     return json.dumps(value, indent=2, default=lambda raw: raw.hex() if isinstance(raw, bytes) else str(raw))
 
@@ -124,8 +147,30 @@ def main(argv: Optional[list[str]] = None) -> int:
     except SystemExit as exc:
         return int(exc.code)
 
+    stack = contextlib.ExitStack()
     try:
-        if args.command == "discover":
+        if args.fake_printer:
+            host = "127.0.0.1"
+            printer = stack.enter_context(emulator.FakePrinter(args.fake_printer, host))
+            stack.enter_context(net.port_overrides(printer.overrides(), host))
+            if args.command in ("identify", "demo"):
+                args.target = host
+            elif args.command in ("baseline", "snapshot"):
+                args.targets = [host]
+            _fake_printer_hint(printer, standalone=False)
+        elif (args.command in ("identify", "demo") and not args.target) or (
+                args.command in ("baseline", "snapshot") and not args.targets):
+            print("[goblin] A target is required (or use --fake-printer PROFILE).", file=sys.stderr)
+            return 2
+        if args.command == "fake-printer":
+            printer = stack.enter_context(emulator.FakePrinter(args.profile, on_event=print))
+            _fake_printer_hint(printer, standalone=True)
+            try:
+                while True:
+                    time.sleep(3600)
+            except KeyboardInterrupt:
+                print("\n[goblin] Fake printer stopped.")
+        elif args.command == "discover":
             hosts = workflow.discover(args.cidr, _selected_ports(args))["hosts"]
             if args.json:
                 print(_json(hosts))
@@ -203,4 +248,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             EOFError, KeyboardInterrupt) as exc:
         print(f"[goblin] {exc or 'Interrupted.'}", file=sys.stderr)
         return 1
+    finally:
+        stack.close()
     return 0

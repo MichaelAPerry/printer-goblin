@@ -6,6 +6,7 @@ import http.client
 import struct
 from typing import Optional
 
+from .. import net
 from ..scope import resolve_target
 
 REQUESTED_ATTRIBUTES = (
@@ -118,7 +119,7 @@ def _uri(host: str, port: int, path: str) -> str:
 
 def _post(host: str, port: int, path: str, timeout: float,
           request: bytes, on_submit=None) -> tuple[int, bytes]:
-    connection = http.client.HTTPConnection(host, port, timeout=timeout)
+    connection = http.client.HTTPConnection(host, net.actual_port(host, port), timeout=timeout)
     try:
         connection.request("POST", path, request, {
             "Content-Type": "application/ipp", "Content-Length": str(len(request)),
