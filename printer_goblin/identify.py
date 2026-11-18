@@ -162,9 +162,8 @@ def identify(ip: str) -> Fingerprint:
     result = Fingerprint(ip)
     with ThreadPoolExecutor(max_workers=3) as pool:
         snmp_future = pool.submit(snmp.probe_printer, ip)
-        result.ports = [port for _, port, state in net.probe_many(
-            ((ip, port) for port in DEFAULT_PORTS), 0.8
-        ) if state == "open"]
+        states = net.probe_with_retry([(ip, port) for port in DEFAULT_PORTS], 0.8)
+        result.ports = [port for port in DEFAULT_PORTS if states[(ip, port)] == "open"]
         ipp_future = pool.submit(_ipp_attributes, ip) if 631 in result.ports else None
         http_future = pool.submit(_http_title, ip) if 80 in result.ports else None
         result.snmp_values, result.snmp_ok = snmp_future.result()
