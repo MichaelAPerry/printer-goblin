@@ -18,10 +18,16 @@ def discover(cidr: str, ports: Iterable[int] = DEFAULT_PORTS,
              timeout: float = 0.8) -> list[Host]:
     addresses = scope.parse_scan_range(cidr)
     ports = tuple(dict.fromkeys(ports))
+    pairs = [(str(ip), port) for ip in addresses for port in ports]
+    states = {(h, p): st for h, p, st in net.probe_many(pairs, timeout)}
+    # Second, slower pass only for hosts that answered at all (a sleeping
+    # printer may answer one port fast and the rest slowly).
+    alive = {h for (h, _), st in states.items() if st in ("open", "closed")}
+    slow = [pair for pair in pairs if pair[0] in alive and states[pair] == "filtered"]
+    for h, p, st in net.probe_many(slow, max(timeout, net.SLOW_RETRY_TIMEOUT)):
+        states[(h, p)] = st
     hosts = {}
-    for ip, port, state in net.probe_many(
-        ((str(ip), port) for ip in addresses for port in ports), timeout
-    ):
-        if state == "open":
+    for ip, port in pairs:
+        if states[(ip, port)] == "open":
             hosts.setdefault(ip, Host(ip)).open_ports.append(port)
     return list(hosts.values())

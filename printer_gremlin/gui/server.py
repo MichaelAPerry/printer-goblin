@@ -17,6 +17,7 @@ import segno
 from .. import safety, workflow
 from ..assets import ASSET_DIR
 from ..discovery import DEFAULT_PORTS
+from ..payloads import pwg
 
 _LOOPBACK = "127.0.0.1"
 _STATIC = Path(__file__).with_name("static")
@@ -130,7 +131,7 @@ class GremlinServer(ThreadingHTTPServer):
             if fmt not in workflow.FORMATS:
                 raise ValueError("Unknown download format.")
             data = plan.data if fmt == plan.format else workflow.render_notice(
-                plan.notice, fmt, paper, native_qr
+                plan.notice, fmt, paper, native_qr, media=pwg.media_for(plan.fingerprint.media_default)
             )
             return data, workflow.MIME_TYPES[fmt], f"gremlin-notice.{workflow.EXTENSIONS[fmt]}"
         if route == "/api/baseline":

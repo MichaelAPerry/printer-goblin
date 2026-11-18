@@ -196,3 +196,21 @@ def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_p
     assert cli.main(args) == 1
     assert actions.count("connect") == 1
     assert ip in json.loads((tmp_path / "print-history.json").read_text())
+
+
+def test_slow_printer_ports_are_retried(monkeypatch):
+    """A waking printer answers slowly; a short timeout must not mislabel it."""
+    from printer_gremlin import discovery, net
+
+    def fake(host, port, timeout, accurate=False):
+        if host != "192.168.9.5":
+            return "filtered"
+        if port == 515:
+            return "open"
+        return "open" if timeout >= net.SLOW_RETRY_TIMEOUT else "filtered"
+
+    monkeypatch.setattr(net, "tcp_open", fake)
+    hosts = discovery.discover("192.168.9.0/29", ports=(9100, 515, 80))
+    assert [(h.ip, sorted(h.open_ports)) for h in hosts] == [("192.168.9.5", [80, 515, 9100])]
+    states = net.probe_with_retry([("192.168.9.5", 80)], 0.8)
+    assert states[("192.168.9.5", 80)] == "open"

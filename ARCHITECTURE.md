@@ -27,7 +27,7 @@ printer_gremlin/
   payloads/
     notice.py     printer-independent notice and serial-free fact sheet
     qr.py         QR matrix via segno
-    postscript.py / pcl.py / pdf.py   one-page office renderers, no external resources
+    postscript.py / pcl.py / pdf.py / pwg.py   one-page office renderers, no external resources
     escpos.py     allowlisted ESC/POS builder
     receipt.py    notice -> ESC/POS
   transports.py   raw 9100 (AppSocket/JetDirect) and IPP Print-Job

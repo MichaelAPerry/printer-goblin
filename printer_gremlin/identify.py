@@ -52,6 +52,10 @@ class Fingerprint:
     def serial(self) -> Optional[str]:
         return self._ipp_string("printer-serial-number") or self.snmp_values.get("prtGeneralSerialNumber")
 
+    @property
+    def media_default(self) -> Optional[str]:
+        return self._ipp_string("media-default")
+
     def _ipp_string(self, name: str) -> Optional[str]:
         for value in self.ipp_attrs.get(name, []):
             if isinstance(value, bytes):

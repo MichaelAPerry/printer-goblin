@@ -10,6 +10,12 @@
 
 | 2026-11-18 | local (qwen3.5:9b) | README and docs/about.md drafts | kept with accuracy fixes (removed fear-mongering opener, "ping"→ports, ethics/legal wording, audience, links) |
 | 2026-11-18 | claude | No-arg launch opens GUI; B&W mascot; Pages + cross-platform test workflows | kept |
+| 2026-11-18 | codex | PWG Raster renderer (sgray_8, 300 dpi), public-domain Fixed bitmap font, IPP Print-Job robustness | kept; CUPS round-trip exact; printed OK on Brother MFC-L2700DW (job 470, completed, 1 impression) |
+| 2026-11-18 | claude | Live test vs Brother MFC-L2700DW from WSL | found+fixed: auto mode fell back to PCL with no evidence (would print garbage on host-based lasers); slow-waking printer ports mislabelled filtered (retry pass); WSL NAT source address shown as if real; verify output now human-readable |
+
+## Live test notes (2026-11-18, Brother MFC-L2700DW, home LAN, from WSL2)
+- Advertises only image/urf + image/pwg-raster (sgray_8, 300 dpi), copies 1-99, SNMP public, ports 9100/631/515/80/443.
+- First discovery after idle missed ports and once showed 9100/515 on the router (192.168.1.1) that were not open on re-test. Missed ports explained by printer deep sleep (now retried). The router reading is unexplained and not reproduced; treat as a WSL NAT artefact hypothesis, unconfirmed.
 
 ## Next steps
 - Test against real hardware: an IPP Everywhere office printer, a PCL-only laser, an Epson TM-series receipt printer (native `GS ( k` QR vs raster fallback).

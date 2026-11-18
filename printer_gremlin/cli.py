@@ -59,6 +59,7 @@ def _parser() -> argparse.ArgumentParser:
     for command in (preview, demo):
         command.add_argument("--paper", choices=("58", "80"), default="80")
         command.add_argument("--raster-qr", action="store_true")
+    preview.add_argument("--media", choices=("letter", "a4"), default="letter")
     preview.add_argument("--sample", action="store_true")
 
     gui = sub.add_parser("gui", help="open the local Printer Gremlin interface")
@@ -73,6 +74,7 @@ def _parser() -> argparse.ArgumentParser:
 
     verification = sub.add_parser("verify", help="check TCP reachability against a baseline")
     verification.add_argument("baseline_file", type=Path)
+    verification.add_argument("--json", action="store_true")
     return parser
 
 
@@ -80,6 +82,19 @@ def _selected_ports(args: argparse.Namespace) -> tuple[int, ...]:
     if args.ports is None:
         return discovery.DEFAULT_PORTS
     return tuple(port for group in args.ports for port in group)
+
+
+def _print_verify(report: dict) -> None:
+    print(f"[gremlin] Verify: {report.get('label', '')}")
+    for ip, ports in report["results"].items():
+        for port, row in ports.items():
+            mark = "!!" if row["after"] == "open" else "ok"
+            print(f"  {mark} {ip}:{port:<5} {row['before']:>8} -> {row['after']:<8} {row['classification']}")
+    if report.get("vantage", {}).get("behind_wsl_nat"):
+        print("  note: probed from inside WSL; the network sees this PC's Windows address.")
+    verdict = report["verdict"]
+    print(f"[gremlin] {'PASS: no printer ports reachable from here.' if verdict == 'PASS' else 'FAIL: printer ports are still reachable from here.'}")
+    print(f"  {report['note']}")
 
 
 def _json(value: object) -> str:
@@ -132,7 +147,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             output = args.output
             if output is None:
                 output = Path(f"printer-gremlin-notice.{workflow.EXTENSIONS[args.format]}")
-            output.write_bytes(workflow.render_notice(notice, args.format, args.paper, not args.raster_qr))
+            output.write_bytes(workflow.render_notice(
+                notice, args.format, args.paper, not args.raster_qr, media=args.media
+            ))
             print(f"[gremlin] Notice saved to {output}.")
         elif args.command == "demo":
             workflow.run_demo(args, identify=identify)
@@ -145,7 +162,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[gremlin] Baseline saved to {args.out}.")
         elif args.command == "verify":
             report = workflow.verify(args.baseline_file)
-            print(_json(report))
+            if args.json:
+                print(_json(report))
+            else:
+                _print_verify(report)
             return 0 if report["verdict"] == "PASS" else 3
     except (OSError, ValueError, safety.PrintRefused, http.client.HTTPException,
             EOFError, KeyboardInterrupt) as exc:

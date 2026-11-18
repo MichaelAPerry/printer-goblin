@@ -17,12 +17,13 @@ def _vantage(targets: Iterable[str]) -> dict:
     return {
         "hostname": socket.gethostname(),
         "source_ips": {ip: net.source_ip(ip) for ip in targets},
+        "behind_wsl_nat": net._is_wsl(),
     }
 
 
 def _probe(pairs: Iterable[tuple[str, int]], targets: Iterable[str]) -> dict[str, dict[str, str]]:
     results: dict[str, dict[str, str]] = {ip: {} for ip in targets}
-    for ip, port, state in net.probe_many(pairs, 0.8, accurate=True):
+    for (ip, port), state in net.probe_with_retry(list(pairs), 0.8, accurate=True).items():
         results[ip][str(port)] = state
     return results
 

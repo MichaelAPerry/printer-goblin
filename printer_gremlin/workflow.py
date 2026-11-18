@@ -11,14 +11,14 @@ from typing import Optional
 from . import discovery, net, safety, scope, transports, verify as verification
 from .findings import Finding, findings as observed_findings
 from .identify import Fingerprint, identify as fingerprint_target
-from .payloads import pcl, pdf, postscript, receipt
+from .payloads import pcl, pdf, postscript, pwg, receipt
 from .payloads.notice import DEFAULT_GUIDE_URL, Notice, build_notice, service_lines
 
 _RENDERERS = {"ps": postscript.render, "pcl": pcl.render, "pdf": pdf.render,
-              "escpos": receipt.render}
+              "pwg": pwg.render, "escpos": receipt.render}
 MIME_TYPES = {"ps": "application/postscript", "pcl": "application/vnd.hp-pcl",
-         "pdf": "application/pdf", "escpos": "application/octet-stream"}
-EXTENSIONS = {"ps": "ps", "pcl": "pcl", "pdf": "pdf", "escpos": "bin"}
+         "pdf": "application/pdf", "pwg": "image/pwg-raster", "escpos": "application/octet-stream"}
+EXTENSIONS = {"ps": "ps", "pcl": "pcl", "pdf": "pdf", "pwg": "pwg", "escpos": "bin"}
 
 FORMATS = tuple(_RENDERERS)
 _PRINT_LOCK = Lock()
@@ -38,16 +38,23 @@ class PrintPlan:
     notice: Notice
 
 
-def render_notice(notice, fmt, paper="80", native_qr=True):
+def render_notice(notice, fmt, paper="80", native_qr=True, *, media="letter"):
     if fmt == "escpos":
         return receipt.render(notice, paper=paper, native_qr=native_qr)
+    if fmt == "pwg":
+        return pwg.render(notice, media=media)
     return _RENDERERS[fmt](notice)
 
 
 def _select_job(fingerprint: Fingerprint, format_name: str,
                 via: Optional[str]) -> tuple[str, str]:
+    """Pick a format only when the printer has positively advertised it.
+
+    Sending a language the printer doesn't speak (e.g. PCL to a host-based
+    Brother laser) prints pages of garbage, so auto mode never guesses.
+    """
     if format_name != "auto":
-        return format_name, via or "raw"
+        return format_name, via or ("ipp" if format_name == "pwg" else "raw")
     if fingerprint.kind == "unknown":
         raise safety.PrintRefused(
             "Unknown printer. Pass --format explicitly. Raw bytes sent to an unknown "
@@ -55,11 +62,21 @@ def _select_job(fingerprint: Fingerprint, format_name: str,
         )
     if fingerprint.kind == "thermal-escpos":
         return "escpos", via or "raw"
-    if via != "raw" and "pdf" in fingerprint.languages and 631 in fingerprint.ports:
+    langs = set(fingerprint.languages)
+    ipp_ok = via != "raw" and 631 in fingerprint.ports
+    if ipp_ok and "pdf" in langs:
         return "pdf", "ipp"
-    if "postscript" in fingerprint.languages:
+    if ipp_ok and "pwg-raster" in langs:
+        return "pwg", "ipp"
+    if "postscript" in langs:
         return "ps", via or "raw"
-    return "pcl", via or "raw"
+    if "pcl" in langs:
+        return "pcl", via or "raw"
+    raise safety.PrintRefused(
+        "The printer did not advertise a language Printer Gremlin can send "
+        f"({', '.join(sorted(langs)) or 'none advertised'}). Pass --format "
+        "explicitly only if you know the printer supports it."
+    )
 
 
 def plan_print(target, fmt="auto", via=None, port=None, guide_url=DEFAULT_GUIDE_URL,
@@ -75,12 +92,14 @@ def _plan(target, ip, identify, fmt, via, port, guide_url, note, paper, native_q
         raise ValueError("invalid format, protocol, or paper size")
     if port is not None and (type(port) is not int or not 1 <= port <= 65535):
         raise ValueError("port must be in 1..65535")
+    if fmt == "pwg" and via == "raw":
+        raise safety.PrintRefused("PWG Raster requires IPP. Select --via ipp.")
     fp = identify(ip)
     fmt, protocol = _select_job(fp, fmt, via)
     port = port if port is not None else (631 if protocol == "ipp" else 9100)
-    notice = build_notice(ip, port, protocol, net.source_ip(ip), guide_url, note,
+    notice = build_notice(ip, port, protocol, net.source_label(ip), guide_url, note,
                           fingerprint=fp)
-    data = render_notice(notice, fmt, paper, native_qr)
+    data = render_notice(notice, fmt, paper, native_qr, media=pwg.media_for(fp.media_default))
     summary = (
         f"[gremlin] {ip}:{port} via {protocol.upper()} | {fmt} | {len(data)} bytes\n"
         f"One notice: {notice.headline}\n"
@@ -128,6 +147,8 @@ def _execute(plan, typed_address, authorized, governor, audit):
         raise safety.PrintRefused("Address confirmation declined.")
     if str(scope.resolve_target(plan.ip)) != plan.ip:
         raise safety.PrintRefused("Print plan requires a resolved printer address.")
+    if plan.format == "pwg" and plan.protocol != "ipp":
+        raise safety.PrintRefused("PWG Raster requires IPP. Select --via ipp.")
     # Serialize check through record so simultaneous GUI requests cannot bypass cooldown.
     with _PRINT_LOCK:
         governor.check(plan.ip, len(plan.data))
@@ -138,6 +159,7 @@ def _execute(plan, typed_address, authorized, governor, audit):
                     plan.ip, plan.data, MIME_TYPES[plan.format], plan.port, path or "/ipp/print"
                 )
                 audit.update(ipp_status=status, job_id=job_id)
+                # IPP successful statuses include ignored or substituted attributes (0x0001).
                 if status >= 0x0100:
                     raise OSError(f"Print-Job failed with IPP status 0x{status:04x}")
             else:
@@ -170,7 +192,7 @@ def discover(cidr, ports=discovery.DEFAULT_PORTS):
 def identify(target, *, probe=fingerprint_target):
     fp = probe(target)
     report = asdict(fp)
-    report.update(model=fp.model, serial=fp.serial, services=service_lines(fp),
+    report.update(model=fp.model, serial=fp.serial, media_default=fp.media_default, services=service_lines(fp),
                   findings=[asdict(item) for item in observed_findings(fp, net.source_ip(fp.ip))])
     return json.loads(json.dumps(report, default=lambda raw: raw.hex()))
 

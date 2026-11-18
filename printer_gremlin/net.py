@@ -61,6 +61,25 @@ def probe_many(
             yield result
 
 
+SLOW_RETRY_TIMEOUT = 3.0
+
+
+def probe_with_retry(pairs: Iterable[tuple[str, int]], timeout: float,
+                     accurate: bool = False,
+                     retry_if=lambda host, port: True) -> dict[tuple[str, int], str]:
+    """Probe, then re-probe "filtered" results once with a longer timeout.
+
+    Printers waking from deep sleep (or busy printing) can take seconds to
+    answer, which a short first-pass timeout reports as "filtered".
+    retry_if(host, port) limits the second pass, e.g. to hosts known to be up.
+    """
+    states = {(h, p): st for h, p, st in probe_many(pairs, timeout, accurate=accurate)}
+    again = [pair for pair, st in states.items() if st == "filtered" and retry_if(*pair)]
+    for h, p, st in probe_many(again, max(timeout, SLOW_RETRY_TIMEOUT), accurate=accurate):
+        states[(h, p)] = st
+    return states
+
+
 def source_ip(target: str) -> str:
     """Ask the routing table for the source address without sending a packet."""
     family = socket.AF_INET6 if ":" in target else socket.AF_INET
@@ -70,3 +89,23 @@ def source_ip(target: str) -> str:
             return sock.getsockname()[0]
     except OSError:
         return "unknown"
+
+
+def _is_wsl() -> bool:
+    try:
+        with open("/proc/version", encoding="utf-8") as fh:
+            return "microsoft" in fh.read().lower()
+    except OSError:
+        return False
+
+
+def source_label(target: str) -> str:
+    """Human-readable vantage point for the printout.
+
+    The local address can differ from what the printer sees when this host is
+    behind NAT (WSL2, containers, VMs), so say so instead of implying otherwise.
+    """
+    label = f"{socket.gethostname()} ({source_ip(target)})"
+    if _is_wsl():
+        label += " via WSL NAT"
+    return label

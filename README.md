@@ -24,7 +24,7 @@ Whether you manage enterprise servers, run a small coffee shop with thermal prin
 *   **Small Business Owners**: Ensure guest Wi-Fi can't print customer receipts without permission.
 *   **Security Teachers**: Have students discover vulnerable devices and prove their findings with physical evidence (paper).
 
-It works seamlessly with office printers using PDF, PostScript, or PCL, as well as thermal receipt printers using ESC/POS commands on 58mm and 80mm paper rolls.
+It works seamlessly with office printers using PDF, PostScript, PCL, or PWG Raster over IPP, as well as thermal receipt printers using ESC/POS commands on 58mm and 80mm paper rolls.
 
 ## Getting Started
 
@@ -53,6 +53,7 @@ For those who prefer scripting or need to automate checks, the command line offe
 printer-gremlin discover 192.168.50.0/24
 printer-gremlin identify 192.168.50.23
 printer-gremlin preview --format pdf -o notice.pdf
+printer-gremlin preview --format pwg --media a4 -o notice.pwg
 printer-gremlin baseline 192.168.50.23 --out before.json
 printer-gremlin demo 192.168.50.23 --yes-i-am-authorized
 printer-gremlin verify before.json

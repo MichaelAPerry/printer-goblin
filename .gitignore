@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 gremlin-out/
 *.baseline.json
+
+tools/out/

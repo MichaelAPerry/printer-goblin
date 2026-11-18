@@ -12,6 +12,7 @@ from ..scope import resolve_target
 REQUESTED_ATTRIBUTES = (
     "printer-make-and-model", "printer-info", "document-format-supported", "printer-state",
     "printer-firmware-string-version", "printer-firmware-version", "printer-serial-number",
+    "media-default",
 )
 _TEXT_TAGS = {0x41, 0x42, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49}
 _MAX_RESPONSE = 1024 * 1024
@@ -124,7 +125,9 @@ def _post(host: str, port: int, path: str, timeout: float, tls: bool,
     else:
         connection = http.client.HTTPConnection(host, port, timeout=timeout)
     try:
-        connection.request("POST", path, request, {"Content-Type": "application/ipp"})
+        connection.request("POST", path, request, {
+            "Content-Type": "application/ipp", "Content-Length": str(len(request)),
+        })
         response = connection.getresponse()
         if not 200 <= response.status < 300:
             return response.status, b""
@@ -171,7 +174,7 @@ def query_printer(host: str, port: int = 631, path: str = "/ipp/print",
 
 def print_job(host: str, data: bytes, document_format: str, port: int = 631,
               path: str = "/ipp/print", job_name: str = "Printer Gremlin notice",
-              timeout: float = 10, *, tls: bool = False) -> tuple[int, Optional[int]]:
+              timeout: float = 30, *, tls: bool = False) -> tuple[int, Optional[int]]:
     """Submit a single Print-Job request and return its status and job ID."""
     host = str(resolve_target(host))
     request = encode_request(0x0002, _uri(host, port, path, tls),

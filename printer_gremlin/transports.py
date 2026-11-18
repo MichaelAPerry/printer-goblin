@@ -22,6 +22,6 @@ def send_raw(host: str, data: bytes, port: int = 9100, timeout: float = 10) -> N
 
 def send_ipp(host: str, data: bytes, document_format: str, port: int = 631,
              path: str = "/ipp/print", job_name: str = "Printer Gremlin notice",
-             timeout: float = 10, *, tls: bool = False) -> tuple[int, Optional[int]]:
+             timeout: float = 30, *, tls: bool = False) -> tuple[int, Optional[int]]:
     """Submit one IPP job and return its status and job ID."""
     return ipp.print_job(host, data, document_format, port, path, job_name, timeout, tls=tls)

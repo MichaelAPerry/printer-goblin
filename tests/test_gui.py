@@ -172,6 +172,8 @@ def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
         plan = json.loads(data)
         assert "<svg" in plan["qr"] and "viewBox=" in plan["qr"]
         assert request("/api/download", {"plan_id": plan["plan_id"], "format": "pdf"})[1].startswith(b"%PDF-1.4")
+        status, data = request("/api/download", {"plan_id": plan["plan_id"], "format": "pwg"})
+        assert status == 200 and data.startswith(b"RaS2PwgRaster")
         status, data = request("/api/print", {
             "plan_id": plan["plan_id"], "typed_address": "127.0.0.2", "authorized": True,
         })
