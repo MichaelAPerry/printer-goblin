@@ -22,7 +22,7 @@ def _vantage(targets: Iterable[str]) -> dict:
 
 def _probe(pairs: Iterable[tuple[str, int]], targets: Iterable[str]) -> dict[str, dict[str, str]]:
     results: dict[str, dict[str, str]] = {ip: {} for ip in targets}
-    for ip, port, state in net.probe_many(pairs, 0.8):
+    for ip, port, state in net.probe_many(pairs, 0.8, accurate=True):
         results[ip][str(port)] = state
     return results
 

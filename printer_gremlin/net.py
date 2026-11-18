@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import socket
+import sys
 import threading
 import time
 from collections import deque
@@ -12,8 +13,16 @@ from itertools import islice
 from typing import Iterable, Iterator
 
 
-def tcp_open(host: str, port: int, timeout: float) -> str:
+# Windows retries a refused SYN for ~2 s before reporting ECONNREFUSED, so a
+# shorter timeout would mislabel closed ports as "filtered". Callers that need
+# the closed/filtered distinction (verify) pass accurate=True.
+WINDOWS_REFUSED_DELAY = 2.5
+
+
+def tcp_open(host: str, port: int, timeout: float, accurate: bool = False) -> str:
     """Classify a TCP connect without sending data."""
+    if accurate and sys.platform == "win32":
+        timeout = max(timeout, WINDOWS_REFUSED_DELAY)
     try:
         with socket.create_connection((host, port), timeout):
             return "open"
@@ -26,7 +35,8 @@ _next_probe = 0.0
 
 
 def probe_many(
-    pairs: Iterable[tuple[str, int]], timeout: float, workers: int = 64
+    pairs: Iterable[tuple[str, int]], timeout: float, workers: int = 64,
+    accurate: bool = False,
 ) -> Iterator[tuple[str, int, str]]:
     """Probe up to 64 pairs concurrently, pacing starts across callers."""
     def probe(pair: tuple[str, int]) -> tuple[str, int, str]:
@@ -37,7 +47,7 @@ def probe_many(
                 time.sleep(delay)
             _next_probe = time.monotonic() + 1 / 200
         host, port = pair
-        return host, port, tcp_open(host, port, timeout)
+        return host, port, tcp_open(host, port, timeout, accurate)
 
     limit = max(1, min(64, workers))
     remaining = iter(pairs)
