@@ -9,7 +9,7 @@
 | [pyipp](https://pypi.org/project/pyipp/) / [ippx](https://pypi.org/project/ippx/) | IPP clients | Async + aiohttp/httpx dependencies. We need only two operations (Get-Printer-Attributes, Print-Job), so a stdlib codec stays small and auditable. |
 | nmap NSE (`snmp-sysdescr`, `http-title`, port 9100 probes) | General scanning | Great for discovery, but it is a separate install and some printer scripts send PJL to 9100, which prints garbage on receipt printers. |
 
-Dependency budget: Python ≥3.9 standard library + [`segno`](https://pypi.org/project/segno/) (pure-Python QR generation).
+Dependency budget: Python ≥3.10 standard library + [`segno`](https://pypi.org/project/segno/) (pure-Python QR generation).
 
 ## Modules
 

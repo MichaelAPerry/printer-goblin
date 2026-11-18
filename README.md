@@ -28,7 +28,7 @@ It works seamlessly with office printers using PDF, PostScript, or PCL, as well 
 
 ## Getting Started
 
-To get up and running, you'll need Python 3.9 or newer. The only external dependency is the `segno` library for generating QR codes.
+To get up and running, you'll need Python 3.10 or newer. The only external dependency is the `segno` library for generating QR codes.
 
 Clone the repo, set up a virtual environment, and install:
 
