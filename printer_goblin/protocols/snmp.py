@@ -7,6 +7,7 @@ import socket
 import time
 from typing import Iterable, Optional
 
+from .. import net
 from ..scope import resolve_target
 
 OIDS = {
@@ -162,7 +163,7 @@ def probe_printer(host: str, community: str = "public", timeout: float = 2,
     responded = False
     try:
         with socket.socket(family, socket.SOCK_DGRAM) as sock:
-            sock.connect((host, port))
+            sock.connect((host, net.actual_port(host, port)))
             while pending:
                 request_id = secrets.randbelow(2**31 - 1) + 1
                 request = encode_get(pending, request_id, community)

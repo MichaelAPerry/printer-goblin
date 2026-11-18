@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
+from ..net import actual_port
 from ..scope import resolve_target
 
 
@@ -80,7 +81,7 @@ def _context() -> ssl.SSLContext:
 def _handshake(context: ssl.SSLContext, host: str, port: int, timeout: float,
                result: Optional[TLSResult] = None) -> None:
     deadline = time.monotonic() + timeout
-    with socket.create_connection((host, port), timeout) as sock:
+    with socket.create_connection((host, actual_port(host, port)), timeout) as sock:
         sock.settimeout(max(0.001, deadline - time.monotonic()))
         with context.wrap_socket(sock, server_hostname=host) as peer:
             if result is not None:

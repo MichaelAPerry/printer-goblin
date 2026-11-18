@@ -3,6 +3,7 @@
 import socket
 from typing import Optional
 
+from . import net
 from .protocols import ipp
 from .scope import resolve_target
 
@@ -11,7 +12,7 @@ def send_raw(host: str, data: bytes, port: int = 9100, timeout: float = 10,
              *, on_submit=None) -> None:
     """Submit one raw job, then briefly drain the printer response."""
     host = str(resolve_target(host))
-    with socket.create_connection((host, port), timeout) as connection:
+    with socket.create_connection((host, net.actual_port(host, port)), timeout) as connection:
         connection.sendall(data)
         if on_submit is not None:
             on_submit()

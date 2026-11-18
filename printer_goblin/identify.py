@@ -102,7 +102,7 @@ class _Title(HTMLParser):
 
 
 def _http_title(ip: str) -> tuple[Optional[str], bool]:
-    connection = http.client.HTTPConnection(ip, 80, timeout=2)
+    connection = http.client.HTTPConnection(ip, net.actual_port(ip, 80), timeout=2)
     responded = False
     try:
         connection.request("GET", "/")
@@ -172,7 +172,7 @@ def _add_evidence(result: Fingerprint) -> None:
 def _passive_banner(ip: str, port: int) -> str:
     deadline = time.monotonic() + 2
     try:
-        with socket.create_connection((ip, port), timeout=2) as sock:
+        with socket.create_connection((ip, net.actual_port(ip, port)), timeout=2) as sock:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return ""

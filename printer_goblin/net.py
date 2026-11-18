@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import errno
+import ipaddress
 import socket
 import sys
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from itertools import islice
 from typing import Iterable, Iterator
@@ -19,12 +21,46 @@ from typing import Iterable, Iterator
 WINDOWS_REFUSED_DELAY = 2.5
 
 
+# Test/demo hook: (host, logical port) -> actual port. Empty in normal use.
+# Overrides are only ever accepted for loopback hosts, so a real network
+# target can never be redirected.
+PORT_OVERRIDES: dict[tuple[str, int], int] = {}
+
+
+def _check_loopback(host: str) -> None:
+    assert ipaddress.ip_address(host.split("%")[0]).is_loopback, \
+        f"port overrides are loopback-only, got {host!r}"
+
+
+def actual_port(host: str, port: int) -> int:
+    """Port to really connect to for a logical printer port (identity by default)."""
+    if (host, port) in PORT_OVERRIDES:
+        _check_loopback(host)
+        return PORT_OVERRIDES[(host, port)]
+    return port
+
+
+@contextmanager
+def port_overrides(mapping: dict[int, int], host: str = "127.0.0.1"):
+    """Temporarily map logical ports to actual ones for a loopback host."""
+    _check_loopback(host)
+    keys = [(host, logical) for logical in mapping]
+    saved = {key: PORT_OVERRIDES[key] for key in keys if key in PORT_OVERRIDES}
+    PORT_OVERRIDES.update({(host, logical): actual for logical, actual in mapping.items()})
+    try:
+        yield
+    finally:
+        for key in keys:
+            PORT_OVERRIDES.pop(key, None)
+        PORT_OVERRIDES.update(saved)
+
+
 def tcp_open(host: str, port: int, timeout: float, accurate: bool = False) -> str:
     """Classify a TCP connect without sending data."""
     if accurate and sys.platform == "win32":
         timeout = max(timeout, WINDOWS_REFUSED_DELAY)
     try:
-        with socket.create_connection((host, port), timeout):
+        with socket.create_connection((host, actual_port(host, port)), timeout):
             return "open"
     except OSError as exc:
         return "closed" if exc.errno == errno.ECONNREFUSED else "filtered"
