@@ -11,6 +11,7 @@ from ..scope import resolve_target
 
 REQUESTED_ATTRIBUTES = (
     "printer-make-and-model", "printer-info", "document-format-supported", "printer-state",
+    "printer-firmware-string-version", "printer-firmware-version", "printer-serial-number",
 )
 _TEXT_TAGS = {0x41, 0x42, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49}
 _MAX_RESPONSE = 1024 * 1024

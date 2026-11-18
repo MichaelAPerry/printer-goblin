@@ -20,17 +20,21 @@ printer_gremlin/
   net.py          TCP connect probes (open / closed / filtered), bounded concurrency
   discovery.py    port sweep of an in-scope CIDR; sends no application data
   identify.py     IPP Get-Printer-Attributes + SNMPv1 GET + HTTP <title>; classifies office vs thermal
+  findings.py     severity-tagged findings from observed probe evidence
+  assets.py       packaged PBM parsing and mascot scaling
   protocols/ipp.py   minimal RFC 8010 codec
   protocols/snmp.py  minimal SNMPv1 GET (read-only, never SET)
   payloads/
-    notice.py     printer-independent notice content
+    notice.py     printer-independent notice and serial-free fact sheet
     qr.py         QR matrix via segno
     postscript.py / pcl.py / pdf.py   one-page office renderers, no external resources
     escpos.py     allowlisted ESC/POS builder
     receipt.py    notice -> ESC/POS
   transports.py   raw 9100 (AppSocket/JetDirect) and IPP Print-Job
   verify.py       before/after reachability baseline and comparison
-  cli.py          discover / identify / preview / demo / baseline / verify
+  workflow.py     shared assessment, rendering plans, guarded submission, and audit
+  gui/            loopback HTTP server, token-protected API, and static browser interface
+  cli.py          discover / identify / preview / demo / baseline / verify / gui
 ```
 
 ## Safety design

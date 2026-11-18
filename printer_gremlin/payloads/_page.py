@@ -4,13 +4,25 @@ from __future__ import annotations
 
 import textwrap
 
+from ..assets import mascot
 from .notice import Notice
 from .qr import qr_matrix
 
 LEFT = 36
 HEADLINE_Y = 58
 QR_WIDTH = 115.2
-LINE_HEIGHT = 13
+LINE_HEIGHT = 12
+MASCOT_WIDTH = 129.6
+MASCOT_TOP = 30
+MASCOT_X = 430
+
+
+def page_mascot(notice: Notice):
+    return mascot(540) if notice.mascot else None
+
+
+def mascot_height(rows):
+    return MASCOT_WIDTH * len(rows) / len(rows[0])
 
 
 def clean_text(value: str) -> str:
@@ -27,22 +39,25 @@ def headline_size(headline: str) -> int:
     return min(24, 504 // max(1, len(headline)))
 
 
-def layout(notice: Notice) -> tuple[str, list[tuple[int, str]], int, list[list[bool]]]:
+def layout(notice: Notice, image=None) -> tuple[str, list[tuple[int, str]], int, list[list[bool]]]:
     """Return headline, positioned lines, and the QR's top and matrix."""
     headline = clean_text(notice.headline)
     if len(headline) > 36:
         raise ValueError("notice headline is too wide")
     lines = []
     y = 86
+    image_bottom = MASCOT_TOP + mascot_height(image) if image else 0
 
     def add_lines(values: list[str]) -> None:
         nonlocal y
         for value in values:
-            for line in textwrap.wrap(clean_text(value), width=84, break_on_hyphens=False) or [""]:
+            width = 62 if y <= image_bottom + LINE_HEIGHT else 84
+            for line in textwrap.wrap(clean_text(value), width=width, break_on_hyphens=False) or [""]:
                 lines.append((y, line))
                 y += LINE_HEIGHT
 
     add_lines(notice.lines)
+    add_lines(["", *notice.fact_lines()])
     qr_top = y
     y += 134
     add_lines([notice.url])

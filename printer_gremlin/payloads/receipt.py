@@ -1,16 +1,25 @@
 """Render a wrapped notice using the allowlisted ESC/POS builder."""
 
 import textwrap
+from typing import Optional
 
+from ..assets import mascot
 from .escpos import EscPosJob
 from .notice import Notice
 from .qr import qr_matrix, scale_matrix
 
 
-def render(notice: Notice, width_chars: int = 32, native_qr: bool = True) -> bytes:
+def render(notice: Notice, width_chars: Optional[int] = None, native_qr: bool = True, *,
+           paper: str = "80") -> bytes:
+    dots, columns, mascot_width = {"58": (384, 32, 300), "80": (576, 48, 420)}[paper]
+    width_chars = columns if width_chars is None else min(width_chars, columns)
     if width_chars < 2:
         raise ValueError("receipt must be at least two columns wide")
-    job = EscPosJob().init().align("center").bold(True).size(2, 2)
+    job = EscPosJob().init().align("center")
+    image = mascot(mascot_width) if notice.mascot else None
+    if image:
+        job.raster(image).line()
+    job.bold(True).size(2, 2)
 
     def add_line(line: str, width: int) -> None:
         clean = "".join(char if 32 <= ord(char) < 127 else "?" for char in line)
@@ -21,6 +30,9 @@ def render(notice: Notice, width_chars: int = 32, native_qr: bool = True) -> byt
     job.size().bold(False).align("left")
     for line in notice.lines:
         add_line(line, width_chars)
+    job.line()
+    for line in notice.fact_lines():
+        add_line(line, width_chars)
     job.align("center").line()
     matrix = qr_matrix(notice.url, border=4)
     if native_qr:
@@ -30,7 +42,7 @@ def render(notice: Notice, width_chars: int = 32, native_qr: bool = True) -> byt
             raise ValueError("native receipt QR requires a printable ASCII URL")
         job.qr_native(notice.url, module_size).line()
     else:
-        job.raster(scale_matrix(matrix, 4)).line()
+        job.raster(scale_matrix(matrix, min(4, dots // len(matrix)))).line()
     add_line(notice.url, width_chars)
     for line in notice.footer:
         add_line(line, width_chars)

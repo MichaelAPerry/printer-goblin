@@ -1,0 +1,79 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f0;
+  --panel: #fff;
+  --ink: #18241c;
+  --muted: #4b5d51;
+  --edge: #b6c5b9;
+  --action: #14533b;
+  --on-action: #fff;
+  --focus: #682ed4;
+  --alarm: #75261c;
+  --alarm-bg: #ffe4da;
+  --medium: #623d0c;
+  --medium-bg: #ffeab9;
+  --info: #1b4569;
+  --info-bg: #dfedfb;
+  --badge: #d9efdb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111b16;
+    --panel: #1c2921;
+    --ink: #f2f8f2;
+    --muted: #c0d2c3;
+    --edge: #63796a;
+    --action: #b0edbd;
+    --on-action: #112b1a;
+    --focus: #dbb7ff;
+    --alarm: #ffdbd4;
+    --alarm-bg: #65271f;
+    --medium: #ffe7aa;
+    --medium-bg: #554017;
+    --info: #d9edff;
+    --info-bg: #264868;
+    --badge: #304c37;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0 auto; max-width: 70rem; padding: 1.25rem clamp(.85rem, 4vw, 2.75rem) 3rem; color: var(--ink); background: var(--bg); font: 1rem/1.55 system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 1.1rem; padding: 1rem 0; }
+h1 { margin: 0 0 .25rem; font-size: clamp(2rem, 6vw, 3.25rem); line-height: 1.12; letter-spacing: -.04em; }
+h2 { margin: 0 0 .75rem; letter-spacing: -.02em; }
+.mascot { display: inline-grid; place-items: center; width: 4.5rem; aspect-ratio: 1; font-size: 2.5rem; flex-shrink: 0; }
+.mascot img { display: block; width: 100%; height: 100%; object-fit: contain; }
+nav, .controls { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; }
+nav { padding: .65rem 0 1.2rem; }
+nav a { color: var(--action); padding: .25rem .55rem; font-weight: 650; text-underline-offset: .22em; }
+section, aside { padding: clamp(.9rem, 3vw, 1.55rem); margin-bottom: 1rem; border: 1px solid var(--edge); border-radius: .9rem; background: var(--panel); }
+aside { background: var(--alarm-bg); color: var(--alarm); position: sticky; top: .4rem; z-index: 1; }
+label { display: grid; gap: .25rem; font-weight: 650; font-size: .9rem; }
+.check { display: flex; min-height: 2.55rem; align-items: center; gap: .35rem; }
+input, button, select { font: inherit; border: 1px solid var(--edge); border-radius: .45rem; min-height: 2.55rem; padding: .4rem .65rem; }
+input, select { min-width: 0; max-width: 100%; background: var(--panel); color: var(--ink); }
+input[type=checkbox] { min-height: 0; width: 1.15rem; height: 1.15rem; accent-color: var(--action); }
+button { color: var(--on-action); background: var(--action); cursor: pointer; font-weight: 650; }
+button:disabled { background: var(--panel); color: var(--muted); cursor: default; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+caption { text-align: left; color: var(--muted); }
+th, td { padding: .45rem .6rem; border-bottom: 1px solid var(--edge); }
+.address { background: transparent; color: var(--action); border: 0; text-decoration: underline; padding: 0; min-height: 0; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .8rem; }
+dt { font-weight: 700; }
+dd { margin: 0; overflow-wrap: anywhere; }
+li { margin-block: .35rem; }
+.chip, .badge { border-radius: .35rem; padding: .16rem .45rem; font-size: .8rem; font-weight: 750; background: var(--badge); }
+.high { color: var(--alarm); background: var(--alarm-bg); }
+.medium { color: var(--medium); background: var(--medium-bg); }
+.info { color: var(--info); background: var(--info-bg); }
+#sheet { background: #fff; color: #172217; padding: clamp(.9rem, 3vw, 1.75rem); border: 1px solid var(--edge); border-radius: .3rem; max-width: 42rem; margin: .8rem 0; }
+#sheet p { white-space: pre-line; overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.sheet-title { display: flex; align-items: center; gap: .8rem; }
+#sheet.receipt { max-width: 34rem; }
+#sheet.paper-58 { max-width: 25rem; }
+#sheet.receipt .sheet-title { flex-direction: column; gap: 0; }
+#sheet svg { width: 8rem; height: 8rem; display: block; }
+#verify-form { margin-top: .8rem; }

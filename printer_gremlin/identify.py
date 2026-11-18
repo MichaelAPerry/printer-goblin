@@ -38,6 +38,28 @@ class Fingerprint:
     languages: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
     ipp_path: Optional[str] = None
+    ipp_ok: bool = False
+    ipp_tls: bool = False
+    snmp_ok: bool = False
+    http_ok: bool = False
+    firmware: Optional[str] = None
+
+    @property
+    def model(self) -> Optional[str]:
+        return self._ipp_string("printer-make-and-model") or self.snmp_values.get("hrDeviceDescr")
+
+    @property
+    def serial(self) -> Optional[str]:
+        return self._ipp_string("printer-serial-number") or self.snmp_values.get("prtGeneralSerialNumber")
+
+    def _ipp_string(self, name: str) -> Optional[str]:
+        for value in self.ipp_attrs.get(name, []):
+            if isinstance(value, bytes):
+                decoded = value.decode("utf-8", errors="replace")
+                value = decoded if decoded.isprintable() and "\ufffd" not in decoded else value.hex()
+            if isinstance(value, str) and value.strip():
+                return value
+        return None
 
 
 class _Title(HTMLParser):
@@ -61,18 +83,20 @@ class _Title(HTMLParser):
             self.parts.append(data)
 
 
-def _http_title(ip: str) -> Optional[str]:
+def _http_title(ip: str) -> tuple[Optional[str], bool]:
     connection = http.client.HTTPConnection(ip, 80, timeout=2)
+    responded = False
     try:
         connection.request("GET", "/")
         response = connection.getresponse()
+        responded = True
         if not 200 <= response.status < 300:
-            return None
+            return None, responded
         parser = _Title()
         parser.feed(response.read(64 * 1024).decode("utf-8", errors="replace"))
-        return " ".join("".join(parser.parts).split()) or None
+        return " ".join("".join(parser.parts).split()) or None, responded
     except (OSError, http.client.HTTPException):
-        return None
+        return None, responded
     finally:
         connection.close()
 
@@ -121,16 +145,19 @@ def identify(ip: str) -> Fingerprint:
     ip = str(scope.resolve_target(str(ip)))
     result = Fingerprint(ip)
     with ThreadPoolExecutor(max_workers=3) as pool:
-        snmp_future = pool.submit(snmp.get_printer_values, ip)
+        snmp_future = pool.submit(snmp.probe_printer, ip)
         result.ports = [port for _, port, state in net.probe_many(
             ((ip, port) for port in DEFAULT_PORTS), 0.8
         ) if state == "open"]
         ipp_future = pool.submit(_ipp_attributes, ip) if 631 in result.ports else None
         http_future = pool.submit(_http_title, ip) if 80 in result.ports else None
-        result.snmp_values = snmp_future.result()
+        result.snmp_values, result.snmp_ok = snmp_future.result()
         if ipp_future is not None:
             result.ipp_attrs, result.ipp_path = ipp_future.result()
+            result.ipp_ok = result.ipp_path is not None
+            result.firmware = (result._ipp_string("printer-firmware-string-version")
+                               or result._ipp_string("printer-firmware-version"))
         if http_future is not None:
-            result.http_title = http_future.result()
+            result.http_title, result.http_ok = http_future.result()
     _add_evidence(result)
     return result

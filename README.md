@@ -39,12 +39,24 @@ printer-gremlin verify before.json     # exit 0 = PASS, 3 = still exposed
 
 `demo --format auto` picks ESC/POS for receipt printers, PDF over IPP when the printer advertises it, otherwise PostScript or PCL over raw 9100. It refuses to guess for an unidentified device, so you need to pass `--format` yourself.
 
+## Printed fact sheet
+
+Each notice includes the mascot and a **WHAT THE GREMLIN SAW** section with the observed model, firmware, open services, and severity-tagged findings when available. Serial numbers are available in identification JSON and the GUI and are excluded from the notice.
+
+Use `preview --sample` to include labelled example findings. A regular preview is offline and shows `(not identified)`. For ESC/POS, `demo` and `preview` accept `--paper 58` or `--paper 80` (default) and `--raster-qr` for printers without native QR support.
+
+## Local GUI
+
+Run `printer-gremlin gui` to open the local interface. Use `--port 0` to let the operating system select a port (the default), or `--no-browser` to open the displayed session URL yourself.
+
+Discover in-scope hosts, identify a printer, preview or download its notice, and submit one print with the authorization checkbox and exact resolved address. Save and compare baselines from the network segment that should be blocked. GUI baselines live under `baselines/` in the Printer Gremlin state directory. The server listens on `127.0.0.1` and uses a session token for every API request.
+
 ## Guardrails
 
 | Guardrail | Limit |
 |---|---|
-| Scope | RFC 1918, RFC 6598, link-local, IPv6 ULA only; scans ≤ /22 |
-| Confirmation | `--yes-i-am-authorized` + typed target address |
+| Scope | RFC 1918, RFC 6598, link-local, IPv6 ULA only; scans ≤ /22, loopback for local emulators |
+| Confirmation | CLI flag or GUI checkbox, plus typed target address |
 | Volume | 1 copy, 1 target per run, ≤3 jobs per run, 1 per printer per 10 min |
 | ESC/POS | allowlisted builder: text, align, bold, size, feed, QR, raster, cut; no drawer, buzzer, or NV writes |
 | Identification | IPP / SNMPv1 GET / HTTP GET only; no PJL, no SNMP SET |

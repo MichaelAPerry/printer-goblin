@@ -19,3 +19,8 @@ printer-gremlin = "printer_gremlin.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["printer_gremlin*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+printer_gremlin = ["assets/*.pbm", "assets/*.png"]
+"printer_gremlin.gui" = ["static/*.html", "static/*.js", "static/*.css"]

@@ -149,10 +149,17 @@ def decode_response(data: bytes, request_id: Optional[int] = None,
 def get_printer_values(host: str, community: str = "public", timeout: float = 2,
                        *, port: int = 161) -> dict[str, str]:
     """Collect available printer strings, retrying a timed-out GET once."""
+    return probe_printer(host, community, timeout, port=port)[0]
+
+
+def probe_printer(host: str, community: str = "public", timeout: float = 2,
+                  *, port: int = 161) -> tuple[dict[str, str], bool]:
+    """Return printer strings and whether a matching GetResponse arrived."""
     host = str(resolve_target(host))
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     names = {oid: name for name, oid in OIDS.items()}
     pending = list(names)
+    responded = False
     try:
         with socket.socket(family, socket.SOCK_DGRAM) as sock:
             sock.connect((host, port))
@@ -177,15 +184,16 @@ def get_printer_values(host: str, community: str = "public", timeout: float = 2,
                     if response is not None:
                         break
                 if response is None:
-                    return {}
+                    return {}, responded
+                responded = True
                 error, index, values = response
                 if error == 0:
                     return {names[oid]: value for oid, value in values.items()
-                            if oid in pending and isinstance(value, str)}
+                            if oid in pending and isinstance(value, str)}, responded
                 # SNMPv1 reports a missing OID as an error for the entire request.
                 if error != 2 or not 1 <= index <= len(pending):
-                    return {}
+                    return {}, responded
                 del pending[index - 1]
     except OSError:
         pass
-    return {}
+    return {}, responded
