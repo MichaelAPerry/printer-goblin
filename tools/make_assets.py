@@ -206,9 +206,10 @@ def main():
         write_pbm(path, width, height, ink)
         print(f"{path.name}: {width} x {height}, {sum(ink) / len(ink):.2%} black, "
               f"{path.stat().st_size:,} bytes")
-    thumbnail = color_thumbnail(*read_png(ART / "gremlin-color.png"))
-    (ART / "gremlin-color-256.png").write_bytes(thumbnail)
-    (PACKAGE / "gremlin_color_256.png").write_bytes(thumbnail)
+    # Black-and-white line art everywhere (GUI, docs, README) to match the printout.
+    thumbnail = color_thumbnail(*read_png(ART / "gremlin-source.png"))
+    (PACKAGE / "gremlin_256.png").write_bytes(thumbnail)
+    (ROOT / "docs" / "gremlin.png").write_bytes(thumbnail)
 
 
 if __name__ == "__main__":

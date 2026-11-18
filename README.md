@@ -1,75 +1,81 @@
-# Printer Gremlin 👹🖨️
+# Printer Gremlin
 
-**Printer security awareness and network segmentation testing, for authorized assessments only.**
+<p align="center"><img src="assets/gremlin-source.png" width="220" alt="Printer Gremlin Mascot"></p>
 
-Printer Gremlin shows that a printer can be reached from a network that shouldn't reach it. It prints one small notice, **"YOU'VE BEEN GOBBED!"**, with a QR code that links to a [remediation guide](docs/index.md). Then it checks the fix with a before/after reachability test.
+**Printer Gremlin** shows whether your printers can be reached from networks that absolutely shouldn't reach them. It does this by printing a friendly "YOU'VE BEEN GOBBED!" notice on the printer itself.
 
-Supports office printers (PostScript, PCL, PDF over raw 9100 or IPP) and thermal receipt printers (ESC/POS).
+It's not an attack tool. It's an audit tool. Think of it as a friendly gremlin popping out to check if your network segmentation is actually working. Printers are often forgotten when designing flat networks. If your guest Wi-Fi, IoT devices, or user workstations can reach a printer's ports, you have a segmentation gap. This matters especially for receipt printers on point-of-sale networks, where PCI DSS scoping rules apply.
 
-> ⚠️ Only use this on networks and devices you are authorized to test. Printer Gremlin refuses public IP addresses, limits how much it prints, and never sends cash-drawer or other peripheral-control commands. See [ARCHITECTURE.md](ARCHITECTURE.md#safety-design).
+## What It Does
 
-## Install
+The tool works in a strict, five-step sequence to keep things safe and clear:
+
+1.  **Discover**: It finds open printer ports (raw port 9100, IPP on 631, LPD on 515, or web interfaces on 80/443) within a private network range you choose.
+2.  **Identify**: It asks the printer what it is using via IPP, SNMP, and its web page—without printing anything yet.
+3.  **Preview**: Before committing to ink, it shows you exactly what the printout will look like.
+4.  **Print**: If authorized, it prints one notice featuring the mascot, a short friendly message, and a "What the gremlin saw" fact sheet listing the model, firmware, open ports, and findings like "Raw print port 9100 reachable." This also includes a QR code linking to a remediation guide.
+5.  **Verify**: You save a "before" snapshot of what is reachable, fix your network, then check again from the same place. A PASS result means no printer ports were reachable from that zone anymore.
+
+## Who Is This For?
+
+Whether you manage enterprise servers, run a small coffee shop with thermal printers, or teach cybersecurity students about segmentation flaws, this tool adapts to you.
+
+*   **IT Admins**: Check your POS networks for PCI gaps quickly.
+*   **Small Business Owners**: Ensure guest Wi-Fi can't print customer receipts without permission.
+*   **Security Teachers**: Have students discover vulnerable devices and prove their findings with physical evidence (paper).
+
+It works seamlessly with office printers using PDF, PostScript, or PCL, as well as thermal receipt printers using ESC/POS commands on 58mm and 80mm paper rolls.
+
+## Getting Started
+
+To get up and running, you'll need Python 3.9 or newer. The only external dependency is the `segno` library for generating QR codes.
+
+Clone the repo, set up a virtual environment, and install:
 
 ```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -e .            # Python ≥3.9; only dependency is segno
+git clone https://github.com/MichaelAPerry/printer-goblin.git
+cd printer-goblin
+python -m venv .venv
+# Activate the environment
+# macOS/Linux:
+. .venv/bin/activate
+# Windows:
+# .venv\Scripts\activate
+
+pip install -e .
 ```
 
-## Workflow
+Once installed, simply run `printer-gremlin` with no arguments to open the GUI in your web browser. It runs entirely on your own computer (`127.0.0.1`) and is protected by a one-time session token.
+
+For those who prefer scripting or need to automate checks, the command line offers full control:
 
 ```bash
-# 1. Find printer ports on an in-scope network (private ranges only, max /22, no data sent)
 printer-gremlin discover 192.168.50.0/24
-
-# 2. Identify a printer (IPP attributes, SNMP GET, HTTP title; nothing sent to port 9100)
 printer-gremlin identify 192.168.50.23
-
-# 3. Preview the notice locally (no network)
 printer-gremlin preview --format pdf -o notice.pdf
-
-# 4. Record reachability BEFORE the fix, from the segment that should be blocked
 printer-gremlin baseline 192.168.50.23 --out before.json
-
-# 5. Print ONE notice (requires the flag AND typing the address)
-printer-gremlin demo 192.168.50.23 --yes-i-am-authorized --note "Q4 segmentation test"
-
-# 6. After the fix, from the same place
-printer-gremlin verify before.json     # exit 0 = PASS, 3 = still exposed
+printer-gremlin demo 192.168.50.23 --yes-i-am-authorized
+printer-gremlin verify before.json
 ```
 
-`demo --format auto` picks ESC/POS for receipt printers, PDF over IPP when the printer advertises it, otherwise PostScript or PCL over raw 9100. It refuses to guess for an unidentified device, so you need to pass `--format` yourself.
+## Built to be Polite
 
-## Printed fact sheet
+Printer Gremlin is designed to prove a point without causing trouble:
 
-Each notice includes the mascot and a **WHAT THE GREMLIN SAW** section with the observed model, firmware, open services, and severity-tagged findings when available. Serial numbers are available in identification JSON and the GUI and are excluded from the notice.
+*   **Network Scope**: It only scans private and link-local networks. Public IP addresses are refused automatically.
+*   **Scan Limits**: Scans are limited to 1,024 addresses to keep scans small and quiet.
+*   **Authorization Required**: You must explicitly flag that you are authorized AND type the printer's address to trigger a print job.
+*   **Rate Limiting**: At most one notice per printer every 10 minutes, capped at three notices per run.
+*   **No Side Effects**: It never sends cash-drawer commands, buzzer triggers, or printer-memory control codes.
+*   **Safe Identification**: The identify phase never sends raw data to the print port; it only asks questions over IPP, SNMP and HTTP.
+*   **Audit Trail**: Every attempt is written to a local audit log on your machine.
 
-Use `preview --sample` to include labelled example findings. A regular preview is offline and shows `(not identified)`. For ESC/POS, `demo` and `preview` accept `--paper 58` or `--paper 80` (default) and `--raster-qr` for printers without native QR support.
+> **⚠️ Warning**: Only use this tool on networks and printers you own or have written permission to test. Testing without permission may be illegal.
 
-## Local GUI
+## Resources & License
 
-Run `printer-gremlin gui` to open the local interface. Use `--port 0` to let the operating system select a port (the default), or `--no-browser` to open the displayed session URL yourself.
+If you see a QR code on a printed notice, scan it for the full **[remediation guide](https://michaelaperry.github.io/printer-goblin/)**.
 
-Discover in-scope hosts, identify a printer, preview or download its notice, and submit one print with the authorization checkbox and exact resolved address. Save and compare baselines from the network segment that should be blocked. GUI baselines live under `baselines/` in the Printer Gremlin state directory. The server listens on `127.0.0.1` and uses a session token for every API request.
+For more context, check out the **[about page](https://michaelaperry.github.io/printer-goblin/about)**. If you are interested in how the pieces fit together, the technical design is documented in [ARCHITECTURE.md](ARCHITECTURE.md). To run the tests: `pip install -e ".[dev]" && pytest -q`.
 
-## Guardrails
-
-| Guardrail | Limit |
-|---|---|
-| Scope | RFC 1918, RFC 6598, link-local, IPv6 ULA only; scans ≤ /22, loopback for local emulators |
-| Confirmation | CLI flag or GUI checkbox, plus typed target address |
-| Volume | 1 copy, 1 target per run, ≤3 jobs per run, 1 per printer per 10 min |
-| ESC/POS | allowlisted builder: text, align, bold, size, feed, QR, raster, cut; no drawer, buzzer, or NV writes |
-| Identification | IPP / SNMPv1 GET / HTTP GET only; no PJL, no SNMP SET |
-| Audit | JSONL log of every attempt in `~/.local/state/printer-gremlin/` |
-
-## Remediation guide
-
-`docs/` is a GitHub Pages site (Settings → Pages → `main` / `docs`). Use `--guide-url` to point the QR code at your own copy.
-
-## Development
-
-```bash
-pip install -e '.[dev]' && pytest -q
-```
-
-MIT licensed.
+This project is released under the MIT License. Go forth and goblin responsibly.

@@ -88,6 +88,10 @@ def _json(value: object) -> str:
 
 def main(argv: Optional[list[str]] = None) -> int:
     """Run one CLI command and return its exit status."""
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        argv = ["gui"]  # no arguments: open the friendly GUI
     try:
         args = _parser().parse_args(argv)
     except SystemExit as exc:

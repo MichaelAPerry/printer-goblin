@@ -5,6 +5,10 @@ title: "You've been gobbed! Now what?"
 
 <!-- Draft by local wording model (qwen3.5:9b); fact-checked and corrected. -->
 
+<p align="center"><img src="gremlin.png" width="180" alt="Printer Gremlin mascot"></p>
+
+[About this project](about)
+
 # You've been gobbed! Now what?
 
 Congratulations on discovering **Printer Gremlin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code titled **"YOU'VE BEEN GOBBED!"**, take a deep breath. This is not an attack, your data has not been stolen, and no malicious documents were printed. It came from an authorized security test of how well your network keeps printers fenced off.

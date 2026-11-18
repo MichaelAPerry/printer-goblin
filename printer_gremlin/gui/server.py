@@ -24,7 +24,7 @@ _FILES = {
     "/": (_STATIC / "index.html", "text/html; charset=utf-8"),
     "/app.js": (_STATIC / "app.js", "text/javascript; charset=utf-8"),
     "/style.css": (_STATIC / "style.css", "text/css; charset=utf-8"),
-    "/mascot.png": (ASSET_DIR / "gremlin_color_256.png", "image/png"),
+    "/mascot.png": (ASSET_DIR / "gremlin_256.png", "image/png"),
 }
 _ERRORS = (ValueError, OSError, safety.PrintRefused, http.client.HTTPException)
 
