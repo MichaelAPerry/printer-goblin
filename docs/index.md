@@ -1,0 +1,74 @@
+---
+layout: default
+title: "You've been gobbed! Now what?"
+---
+
+<!-- Draft by local wording model (qwen3.5:9b); fact-checked and corrected. -->
+
+# You've been gobbed! Now what?
+
+Congratulations on discovering **Printer Gremlin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code titled **"YOU'VE BEEN GOBBED!"**, take a deep breath. This is not an attack, your data has not been stolen, and no malicious documents were printed. It came from an authorized security test of how well your network keeps printers fenced off.
+
+Here is everything you need to know, depending on your role.
+
+## Found this page on a printout?
+
+If you are ordinary office staff who stumbled upon this notice while working: **stop here**. The printout itself is benign; it contains no sensitive information about you or the company.
+
+This notice came from an authorized security test conducted by our IT or security team. They verified that unauthorized hosts could communicate with your printers and generated this report to trigger a response. Rest assured: **no printer settings were changed**, and **no documents were read** or accessed during the test. Your privacy and data integrity remain intact.
+
+The next step is simple: hand the printout to your local IT support or security team immediately. The details printed on it—including the printer's network address, the time of the test, and the source network segment—are crucial telemetry. They will use this information to verify the findings and apply the necessary fixes quickly. Once they confirm the issue is resolved, you can safely discard the notice.
+
+## What the test showed (for IT)
+
+For our Information Technology administrators, here is a technical breakdown of what "being gobbed" implies. The fact that a host on one network segment successfully opened a connection to the printer indicates specific vulnerabilities in your segmentation or hardening.
+
+Typically, printers accept incoming jobs on standard ports such as **TCP 9100** (raw/AppSocket/JetDirect), **TCP 631** (IPP/IPPS), and **TCP 515** (LPD). They frequently expose management web interfaces on **HTTP 80/443** and allow monitoring via **SNMP on UDP 161**. The ability to connect to these ports from an unauthorized segment highlights gaps in your firewall rules or VLAN design.
+
+### Why this matters
+Printers are often legacy devices that are patched less frequently than servers or workstations. Beyond simple data leakage, many models store or cache print jobs, which can expose sensitive documents. Many administrative web UIs ship with default credentials that are rarely changed. Furthermore, a compromised printer can serve as a foothold for lateral movement within the network.
+
+This is particularly critical for Point-of-Sale (POS) environments. Receipt and ESC-POS printers on POS networks often share a network segment with payment terminals. Anything that can reach the cardholder data environment can be pulled into PCI DSS scope, and a poorly isolated printer is a possible path toward payment systems.
+
+## Fix it
+
+To remediate these findings and secure your infrastructure against similar scans, follow this checklist:
+
+1.  **Segment Your Network**: Place all printers in a dedicated VLAN or subnet. Configure firewalls so that only authorized print servers (or specific trusted client subnets) can reach the job submission ports (9100, 631, 515). Explicitly deny access from guest networks, IoT devices, and other untrusted segments. Restrict management traffic (HTTP/HTTPS on 80/443, SNMP on UDP 161) strictly to an administrative network with strong authentication.
+
+2.  **Use a Print Server**: Ideally, clients should never talk directly to the hardware printer. Deploy a print server, such as CUPS (Common Unix Printing System) or a Windows Print Server. Configure clients to submit jobs only to the print server; then, configure the firewall so only the print server initiates connections to the printers. This adds a necessary layer of abstraction and security control.
+
+3.  **Hardening Protocols**: Disable protocols you do not actively use on the printer firmware. Turn off legacy support for LPD, raw TCP 9100, FTP, Telnet, and SNMPv1/v2c (especially those using the default "public" community string). If you require monitoring, prefer **SNMPv3** with authenticated encryption. Enable **IPPS (IPP over TLS)** wherever supported to encrypt job data in transit.
+
+4.  **Credential Management and Firmware**: Change all default administrator passwords immediately. Ensure the printer firmware is updated to the latest stable version available from the manufacturer. Disable unneeded features such as Wi-Fi Direct or cloud print services that increase the attack surface.
+
+5.  **POS Specifics**: For receipt and ESC-POS printers specifically, ensure they are reachable only from the designated POS segment. They must never be accessible from guest Wi-Fi networks or general corporate user networks and to keep your PCI DSS scope small.
+
+6.  **Guest Wi-Fi Safety**: If you have a guest network, ensure client isolation is enabled to prevent guests from scanning local subnets. Additionally, block traffic from the guest network to private (RFC 1918) destinations so guests cannot reach internal printers or servers.
+
+## Prove the fix worked
+
+Before closing the ticket, verify that your remediation was successful. Do not rely solely on visual inspection or internal logs; use the tool itself for validation.
+
+From a vantage point on the network segment that **should not** be able to reach the printer:
+1.  Record the current reachability (this does not print anything):
+    ```bash
+    printer-gremlin baseline <printer-ip> --out before.json
+    ```
+2.  Apply the security fixes detailed above.
+3.  From the **same** restricted location, run the verification command:
+    ```bash
+    printer-gremlin verify before.json
+    ```
+
+If the tool outputs **PASS**, it confirms that no printer ports were reachable from that specific vantage point. Note that this test only proves isolation from where you ran it. If your network has multiple sensitive segments (e.g., Dev, Prod, Guest), repeat this process from each segment that is required to be blocked to ensure complete coverage.
+
+## About Printer Gremlin
+
+Finally, a brief note on the tool itself. **Printer Gremlin** is an open-source project intended strictly for authorized security testing and network hygiene audits. It operates with several safety guards in place:
+*   It refuses public IP addresses outright; it only works on private and link-local networks.
+*   It requires the operator to type the target address manually to confirm intent, so nothing prints by accident.
+*   To avoid disruption during testing, it prints at most one notice per printer every 10 minutes.
+*   Crucially, it never sends commands that would open cash drawers, sound buzzers, write to printer memory, or control other peripherals.
+
+By engaging with this tool and reading this guide, you are taking a proactive step toward a more secure office environment. Thank you for your cooperation!
