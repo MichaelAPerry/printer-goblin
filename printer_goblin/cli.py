@@ -12,7 +12,7 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
-from . import discovery, emulator, net, safety, workflow
+from . import discovery, emulator, net, report as assessment, safety, workflow
 from .verify import EXIT_CODES
 from .identify import Fingerprint, identify
 from .payloads.notice import DEFAULT_GUIDE_URL, build_notice
@@ -49,6 +49,14 @@ def _parser() -> argparse.ArgumentParser:
     fingerprint.add_argument("--json", action="store_true")
     fingerprint.add_argument("--no-validate-job", action="store_true",
                              help="skip the paper-free IPP Validate-Job check")
+
+    report = sub.add_parser("report", help="write a paper-free assessment report")
+    report.add_argument("target", nargs="?")
+    report.add_argument("--baseline", type=Path)
+    report.add_argument("--out", type=Path)
+    report.add_argument("--format", choices=("html", "md", "json"), default="html")
+    report.add_argument("--no-validate-job", action="store_true",
+                        help="skip the paper-free IPP Validate-Job check")
 
     preview = sub.add_parser("preview", help="render a notice to a local file")
     preview.add_argument("--format", choices=workflow.FORMATS, required=True)
@@ -158,12 +166,12 @@ def main(argv: Optional[list[str]] = None) -> int:
             host = "127.0.0.1"
             printer = stack.enter_context(emulator.FakePrinter(args.fake_printer, host))
             stack.enter_context(net.port_overrides(printer.overrides(), host))
-            if args.command in ("identify", "demo"):
+            if args.command in ("identify", "demo", "report"):
                 args.target = host
             elif args.command in ("baseline", "snapshot"):
                 args.targets = [host]
             _fake_printer_hint(printer, standalone=False)
-        elif (args.command in ("identify", "demo") and not args.target) or (
+        elif (args.command in ("identify", "demo", "report") and not args.target) or (
                 args.command in ("baseline", "snapshot") and not args.targets):
             print("[goblin] A target is required (or use --fake-printer PROFILE).", file=sys.stderr)
             return 2
@@ -226,6 +234,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                     print(f"  {finding['detail']}")
                 for reason in result['reasons']:
                     print(f"- {reason!r}")
+        elif args.command == "report":
+            probe = partial(identify, validate_job=False) if args.no_validate_job else identify
+            result = assessment.build_report(args.target, baseline_path=args.baseline, probe=probe)
+            render = {"html": assessment.render_html, "md": assessment.render_markdown, "json": _json}
+            output = args.out or Path(assessment.report_filename(result, args.format))
+            output.write_text(render[args.format](result) + "\n", encoding="utf-8")
+            print(output)
         elif args.command == "preview":
             example = None
             if args.sample:

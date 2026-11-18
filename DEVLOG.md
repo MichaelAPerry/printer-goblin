@@ -17,6 +17,10 @@
 | 2026-11-18 | codex | v0.2 paper-free assessment with IPP authorization checks, management reachability, TLS inspection, and firmware advisories | Working tree implementation and regression tests |
 | 2026-11-18 | claude | Review + live test of v0.2 vs Brother | found Validate-Job OK (no auth), Telnet+FTP open, HTTPS 443 TLS 1.1 only. Fixes: TLSResult.modern (distinguish "legacy only"), strip ANSI/telnet IAC from banners, TELNET/FTP basis inferred, suppress IPP_NO_AUTH when UNAUTH_PRINT observed, replaced unverified advisory URLs with checked ones (Star Micronics dropped: no advisory page). |
 | 2026-11-18 | sonnet (subagent) | Fake printer emulator (office-open/office-locked/receipt), loopback port-override hook, ESC/POS safety decoder, --fake-printer | kept; Claude extended overrides to management ports and TLS/banner probes, moved demo banner to stderr |
+| 2026-11-18 | haiku (subagent) | QR deep links to per-finding fixes (notice.guide_link) | kept |
+| 2026-11-18 | codex | Client assessment report with HTML, Markdown, and JSON exports | Added CLI and token-protected GUI download with serial masking and an evidence digest |
+| 2026-11-18 | local (qwen3.5:9b) | Per-finding remediation page docs/findings.md (18 anchors) | kept with accuracy fixes (removed 'inject malicious code'/'execute code' claims, LPD/LPR have no auth, firmware is not known to be outdated, auth-required reframed as good news) |
+| 2026-11-18 | claude | Review of report + deep links | fixed severity-constant clash, ticket-friendly Markdown escaping, report design pass (summary grid, B&W severity badges, readable evidence); verified on Brother |
 
 ## Live test notes (2026-11-18, Brother MFC-L2700DW, home LAN, from WSL2)
 - Advertises only image/urf + image/pwg-raster (sgray_8, 300 dpi), copies 1-99, SNMP public, ports 9100/631/515/80/443.

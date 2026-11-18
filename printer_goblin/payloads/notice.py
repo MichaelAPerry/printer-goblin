@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -10,6 +11,15 @@ from ..findings import Finding, findings
 from ..identify import MGMT_PORTS, Fingerprint
 
 DEFAULT_GUIDE_URL = "https://michaelaperry.github.io/printer-goblin/"
+FINDINGS_PAGE = "findings/"
+_REF = re.compile(r"[a-z0-9-]+")
+
+
+def guide_link(ref: str | None, guide_url: str = DEFAULT_GUIDE_URL) -> str:
+    """Deep link to a finding's fix on the default guide; other guides are returned unchanged."""
+    if guide_url != DEFAULT_GUIDE_URL or not isinstance(ref, str) or not _REF.fullmatch(ref):
+        return guide_url
+    return DEFAULT_GUIDE_URL + FINDINGS_PAGE + "#" + ref
 
 
 @dataclass
@@ -78,7 +88,8 @@ def build_notice(target: str, port: int, protocol: str, source: str,
     if len(services) > 5:
         services = [*services[:4], f"{len(services) - 4} more TCP ports open"]
     report = findings(fingerprint, source) if fingerprint else []
-    return Notice(headline=HEADLINE, lines=lines + [""] + facts, url=guide_url,
+    url = guide_link(report[0].ref, guide_url) if report else guide_url
+    return Notice(headline=HEADLINE, lines=lines + [""] + facts, url=url,
                   footer=list(FOOTER),
                   device=device_lines(fingerprint) if fingerprint else [],
                   services=services, findings=report)

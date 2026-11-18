@@ -128,6 +128,23 @@ form('identify-form', async () => {
     list.append(item);
   }
   byId('device').replaceChildren(facts, list);
+  byId('download-report').hidden = false;
+});
+
+byId('download-report').addEventListener('click', async event => {
+  if (!identified) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  banner();
+  try {
+    const blob = await api('report', {target: identified}, true);
+    const link = element('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'goblin-report.html';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch (error) { banner(error); }
+  finally { button.disabled = false; }
 });
 
 function confirmState() {
@@ -147,6 +164,7 @@ function invalidatePlan() {
 
 function targetChanged() {
   identified = null;
+  byId('download-report').hidden = true;
   byId('device').replaceChildren();
   invalidatePlan();
 }

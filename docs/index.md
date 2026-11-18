@@ -7,7 +7,7 @@ title: "You've been gobbed! Now what?"
 
 <p align="center"><img src="goblin.png" width="180" alt="Printer Goblin mascot"></p>
 
-[About this project](about)
+[What each finding means and how to fix it](findings/) · [About this project](about)
 
 # You've been gobbed! Now what?
 

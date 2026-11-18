@@ -34,9 +34,10 @@ printer_goblin/
     receipt.py    notice -> ESC/POS
   transports.py   raw 9100 (AppSocket/JetDirect) and IPP Print-Job
   verify.py       before/after reachability baseline and comparison
+  report.py       paper-free assessment, serial masking, evidence digest, and HTML/Markdown export
   workflow.py     shared assessment, rendering plans, guarded submission, and audit
   gui/            loopback HTTP server, token-protected API, and static browser interface
-  cli.py          discover / identify / preview / demo / baseline / snapshot / verify / gui
+  cli.py          discover / identify / report / preview / demo / baseline / snapshot / verify / gui
 ```
 
 ## Safety design

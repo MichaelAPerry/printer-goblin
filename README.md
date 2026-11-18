@@ -65,6 +65,10 @@ printer-goblin demo 192.168.50.23 --yes-i-am-authorized
 printer-goblin verify before.json
 ```
 
+## Assessment report
+
+Run `printer-goblin report 192.168.50.23 --baseline before.json` or select **Download report** after **Identify** in the GUI. The report runs a fresh, paper-free assessment and saves a self-contained HTML file with findings, remediation links, serial-masked evidence, and matching local audit events. Omit `--baseline` to skip isolation verification. Use `--format md` for tickets, `--format json` for structured data, or `--no-validate-job` to skip the IPP authorization check.
+
 ## Try it without a printer
 
 Printer Goblin ships a fake printer for demos and tests. It listens on loopback only, and the normal safety checks still apply (typed confirmation, `--yes-i-am-authorized`, cooldown, audit log).

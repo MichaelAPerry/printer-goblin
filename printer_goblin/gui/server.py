@@ -15,6 +15,7 @@ from threading import Lock
 
 import segno
 
+from .. import report as assessment_report
 from .. import safety, workflow
 from ..assets import ASSET_DIR
 from ..discovery import DEFAULT_PORTS
@@ -118,6 +119,10 @@ class GoblinServer(ThreadingHTTPServer):
             return {"status": "done", **job.result()} if job.done() else {"status": "running"}
         if route == "/api/identify":
             return workflow.identify(_string(body, "target"))
+        if route == "/api/report":
+            assessment = assessment_report.build_report(_string(body, "target"))
+            return (assessment_report.render_html(assessment).encode("utf-8"),
+                    "text/html; charset=utf-8", assessment_report.report_filename(assessment))
         if route == "/api/plan":
             via = _string(body, "via", "auto")
             paper = _string(body, "paper", "80")
@@ -213,12 +218,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         if filename is not None:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-        self.end_headers()
+        csp = assessment_report.HTML_CSP if filename and mime == "text/html; charset=utf-8" else None
+        self.end_headers(csp=csp)
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    def end_headers(self):
-        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:")
+    def end_headers(self, *, csp=None):
+        self.send_header("Content-Security-Policy", csp or "default-src 'self'; img-src 'self' data:")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
