@@ -14,9 +14,11 @@ from .discovery import DEFAULT_PORTS
 from .protocols import ipp, snmp
 
 _THERMAL = re.compile(
-    r"\b(?:TM-[TM]|Epson\s+TM|Star\s+TSP|mC-Print|Bixolon|SRP-|"
-    r"Citizen\s+CT-S|XPrinter|POS-80|Rongta|receipt\b|thermal\b)", re.I
+    r"\b(?:Star\s+TSP|TSP\d|mC-Print|Bixolon|SRP-|"
+    r"Citizen|XPrinter|POS-80|Rongta|receipt\b|thermal\b)", re.I
 )
+_EPSON_TM = re.compile(r"(?:\bEpson\s+TM-[A-Z0-9]+|^\s*TM-[TMUHJPLOS]\d+[A-Z0-9]*)\b", re.I)
+_ESCPOS = re.compile(r"\bESC/POS\b", re.I)
 _OFFICE = re.compile(r"\b(?:LaserJet|OfficeJet|LaserPrinter|imageRUNNER|WorkCentre|Bizhub)\b", re.I)
 _FORMATS = {
     "application/postscript": "postscript",
@@ -39,7 +41,6 @@ class Fingerprint:
     reasons: list[str] = field(default_factory=list)
     ipp_path: Optional[str] = None
     ipp_ok: bool = False
-    ipp_tls: bool = False
     snmp_ok: bool = False
     http_ok: bool = False
     firmware: Optional[str] = None
@@ -123,10 +124,15 @@ def _add_evidence(result: Fingerprint) -> None:
         for value in values:
             if not isinstance(value, str):
                 continue
-            if _THERMAL.search(value):
-                result.kind = "thermal-escpos"
+            epson_tm = _EPSON_TM.search(value)
+            if epson_tm or _ESCPOS.search(value):
+                if "escpos" not in result.languages:
+                    result.languages.insert(0, "escpos")
+                result.reasons.append(f"{source} indicates ESC/POS: {value}")
+            if epson_tm or _THERMAL.search(value):
+                result.kind = "thermal"
                 result.reasons.append(f"{source} identifies a thermal printer: {value}")
-            elif _OFFICE.search(value) and result.kind != "thermal-escpos":
+            elif _OFFICE.search(value) and result.kind != "thermal":
                 result.kind = "office"
                 result.reasons.append(f"{source} identifies an office printer: {value}")
 
@@ -136,9 +142,15 @@ def _add_evidence(result: Fingerprint) -> None:
             if language not in result.languages:
                 result.languages.append(language)
                 result.reasons.append(f"IPP advertises {mime}")
-    if result.kind == "thermal-escpos":
+    extra_descriptions = [*result.ipp_attrs.get("printer-info", []), result.http_title]
+    if "escpos" not in result.languages and any(
+        isinstance(value, str) and _ESCPOS.search(value) for value in extra_descriptions
+    ):
         result.languages.insert(0, "escpos")
-    elif result.languages:
+        result.reasons.append("Device description mentions ESC/POS")
+    if "escpos" in result.languages:
+        result.kind = "thermal"
+    elif result.kind != "thermal" and result.languages:
         result.kind = "office"
     if not result.reasons:
         result.reasons.append("No printer model or supported document format recognized")

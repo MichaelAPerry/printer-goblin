@@ -56,6 +56,7 @@ class GremlinServer(ThreadingHTTPServer):
         self.lock = Lock()
         self.worker = ThreadPoolExecutor(max_workers=1)
         self.jobs = {}
+        self.print_jobs = {}
         self.plans = {}
 
     def server_close(self):
@@ -76,6 +77,24 @@ class GremlinServer(ThreadingHTTPServer):
         if len(name) != 24 or any(char not in "0123456789abcdef" for char in name):
             raise ValueError("Invalid baseline ID.")
         return directory / (name + ".json")
+
+    def _start_print(self, plan, typed_address, authorized):
+        progress = {"status": "running"}
+
+        def update(report):
+            with self.lock:
+                progress.update(status=report["status"], message=workflow.print_status_text(report))
+
+        with self.lock:
+            if any(not job.done() for job, _ in self.print_jobs.values()):
+                raise ValueError("A print job is already running.")
+            if len(self.print_jobs) >= 16:
+                del self.print_jobs[next(iter(self.print_jobs))]
+            job_id = secrets.token_hex(12)
+            job = self.worker.submit(workflow.execute_print, plan, typed_address,
+                                     authorized, self.governor, on_status=update)
+            self.print_jobs[job_id] = (job, progress)
+        return {"job_id": job_id}
 
     def action(self, route, body):
         if route == "/api/discover":
@@ -125,8 +144,7 @@ class GremlinServer(ThreadingHTTPServer):
                 raise ValueError("Unknown print plan. Create a preview first.")
             plan, paper, native_qr = saved
             if route == "/api/print":
-                return workflow.execute_print(plan, body.get("typed_address"),
-                                              body.get("authorized"), self.governor)
+                return self._start_print(plan, body.get("typed_address"), body.get("authorized"))
             fmt = _string(body, "format")
             if fmt not in workflow.FORMATS:
                 raise ValueError("Unknown download format.")
@@ -134,6 +152,16 @@ class GremlinServer(ThreadingHTTPServer):
                 plan.notice, fmt, paper, native_qr, media=pwg.media_for(plan.fingerprint.media_default)
             )
             return data, workflow.MIME_TYPES[fmt], f"gremlin-notice.{workflow.EXTENSIONS[fmt]}"
+        if route == "/api/print-status":
+            with self.lock:
+                saved = self.print_jobs.get(_string(body, "job_id"))
+                if saved is None:
+                    raise ValueError("Unknown print job.")
+                job, progress = saved
+                if not job.done():
+                    return {"done": False, **progress}
+            result = job.result()
+            return {"done": True, **result, "message": workflow.print_status_text(result)}
         if route == "/api/baseline":
             targets = body.get("targets")
             if (not isinstance(targets, list) or not 1 <= len(targets) <= 1024
@@ -141,8 +169,11 @@ class GremlinServer(ThreadingHTTPServer):
                 raise ValueError("Select at least one and at most 1024 targets.")
             baseline_id = secrets.token_hex(12)
             path = self._baseline_path(baseline_id)
+            allow = body.get("allow", [])
+            if not isinstance(allow, list) or any(type(port) is not int for port in allow):
+                raise ValueError("Allowed ports must be a list of port numbers.")
             report = workflow.baseline(targets, _ports(body), path.with_suffix(".tmp"),
-                                       _string(body, "label", ""))
+                                       _string(body, "label", ""), allow=allow)
             path.with_suffix(".tmp").replace(path)
             return {"id": baseline_id, **report}
         if route == "/api/baselines":
@@ -157,7 +188,14 @@ class GremlinServer(ThreadingHTTPServer):
                     continue
             return {"baselines": sorted(baselines, key=lambda item: item["created"], reverse=True)}
         if route == "/api/verify":
-            return workflow.verify(self._baseline_path(_string(body, "id")))
+            reference = body.get("reference")
+            printer_online = body.get("printer_online", False)
+            if reference is not None and not isinstance(reference, dict):
+                raise ValueError("Reference must be a snapshot JSON object.")
+            if type(printer_online) is not bool:
+                raise ValueError("printer_online must be a boolean.")
+            return workflow.verify(self._baseline_path(_string(body, "id")),
+                                   reference=reference, printer_online=printer_online)
         raise LookupError("Unknown API action.")
 
 

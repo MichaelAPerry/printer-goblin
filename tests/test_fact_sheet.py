@@ -26,7 +26,7 @@ def test_observed_findings(field, value, expected):
     assert [item.id for item in findings(fp, fp.ip)] == expected
 
 
-def test_findings_order_and_tls():
+def test_findings_order_and_basis():
     ip = "127.0.0.1"
     fp = Fingerprint(ip, ALL_PORTS, ipp_ok=True, snmp_ok=True, http_ok=True)
     report = findings(fp, ip)
@@ -35,8 +35,10 @@ def test_findings_order_and_tls():
     ]
     assert [item.severity for item in report] == ["high", *["medium"] * 4, "info"]
     assert all(len(item.title) <= 32 and len(item.detail) <= 64 for item in report)
-    fp.ipp_tls = True
-    assert "IPP_PLAIN" not in {item.id for item in findings(fp, ip)}
+    assert [item.basis for item in report] == [
+        "inferred", "observed", "inferred", "observed", "inferred", "observed",
+    ]
+    assert all(item.detail.startswith("Likely: ") == (item.basis == "inferred") for item in report)
     assert findings(Fingerprint(ip), ip) == []
 
 
@@ -76,7 +78,7 @@ def test_fact_sheet_renderers(monkeypatch, image):
     esc = receipt.render(notice, paper="58", native_qr=False)
     for data in (ps, pcl_data, pdf_data, esc):
         assert b"WHAT THE GREMLIN SAW" in data
-        assert b"[HIGH]" in data
+        assert b"[HIGH]" in data and b"Likely: " in data
         assert serial.encode() not in data
         assert b"OTHER-PRIVATE-SERIAL" not in data
     assert ps.startswith(b"%!PS") and ps.rstrip().endswith(b"showpage")
@@ -119,7 +121,7 @@ def test_identify_records_responses_and_firmware(monkeypatch):
         {"printer-firmware-version": [b"1.2.3"]}, "/ipp/print"
     ))
     fp = identify("127.0.0.1")
-    assert fp.ipp_ok and not fp.ipp_tls and fp.firmware == "1.2.3"
+    assert fp.ipp_ok and fp.firmware == "1.2.3"
     assert fp.snmp_ok and not fp.snmp_values
     assert fp.http_ok and fp.http_title is None
 
@@ -134,3 +136,32 @@ def test_preview_sample_is_opt_in(tmp_path):
     assert main([*args, "--sample"]) == 0
     payload = path.read_bytes()
     assert b"sample identification data" in payload and b"[HIGH]" in payload
+
+
+@pytest.mark.parametrize("model,expected", [
+    ("Star TSP650", False),
+    ("Star TSP650 compatible with TM-T88", False),
+    ("Star mC-Print3", False),
+    ("Bixolon SRP-350", False),
+    ("Citizen CT-S310", False),
+    ("XPrinter XP-80", False),
+    ("Rongta", False),
+    ("Generic thermal receipt printer", False),
+    ("Epson TM-T88", True),
+    ("TM-T88V", True),
+    ("XPrinter with ESC/POS emulation", True),
+])
+def test_thermal_requires_positive_escpos_evidence(model, expected):
+    from printer_gremlin import safety, workflow
+    from printer_gremlin.identify import _add_evidence
+
+    fp = Fingerprint("127.0.0.1", snmp_values={"sysDescr": model})
+    _add_evidence(fp)
+    assert fp.kind == "thermal"
+    assert ("escpos" in fp.languages) is expected
+    if expected:
+        assert workflow._select_job(fp, "auto", None) == ("escpos", "raw")
+    else:
+        with pytest.raises(safety.PrintRefused, match="command language is unconfirmed"):
+            workflow._select_job(fp, "auto", None)
+        assert workflow._select_job(fp, "escpos", None) == ("escpos", "raw")

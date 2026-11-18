@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import discovery, safety, workflow
+from .verify import EXIT_CODES
 from .identify import Fingerprint, identify
 from .payloads.notice import DEFAULT_GUIDE_URL, build_notice
 
@@ -67,13 +68,21 @@ def _parser() -> argparse.ArgumentParser:
     gui.add_argument("--no-browser", action="store_true")
 
     baseline = sub.add_parser("baseline", help="save current TCP reachability")
-    baseline.add_argument("targets", nargs="+")
-    baseline.add_argument("--out", required=True, type=Path)
-    baseline.add_argument("--label", default="")
-    baseline.add_argument("--ports", nargs="+", type=_ports)
+    snapshot = sub.add_parser("snapshot", help="save a liveness reference from an allowed network")
+    for command in (baseline, snapshot):
+        command.add_argument("targets", nargs="+")
+        command.add_argument("--out", required=True, type=Path)
+        command.add_argument("--label", default="")
+        command.add_argument("--ports", nargs="+", type=_ports)
+    baseline.add_argument("--expect", choices=("deny",), default="deny",
+                          help="default expectation for selected ports")
+    baseline.add_argument("--allow", action="append", type=_ports, default=[],
+                          help="port(s) expected to stay reachable")
 
     verification = sub.add_parser("verify", help="check TCP reachability against a baseline")
     verification.add_argument("baseline_file", type=Path)
+    verification.add_argument("--reference", type=Path)
+    verification.add_argument("--printer-online", action="store_true")
     verification.add_argument("--json", action="store_true")
     return parser
 
@@ -88,13 +97,16 @@ def _print_verify(report: dict) -> None:
     print(f"[gremlin] Verify: {report.get('label', '')}")
     for ip, ports in report["results"].items():
         for port, row in ports.items():
-            mark = "!!" if row["after"] == "open" else "ok"
-            print(f"  {mark} {ip}:{port:<5} {row['before']:>8} -> {row['after']:<8} {row['classification']}")
-    if report.get("vantage", {}).get("behind_wsl_nat"):
+            print(f"  {ip}:{port:<5} {row['policy']:>5} {row['before']:>8} -> "
+                  f"{row['after']:<8} {row['classification']}")
+        evidence = ", ".join(report["liveness"][ip]) or "none"
+        print(f"  Liveness for {ip}: {evidence}")
+    if report["vantage"]["behind_wsl_nat"]:
         print("  note: probed from inside WSL; the network sees this PC's Windows address.")
-    verdict = report["verdict"]
-    print(f"[gremlin] {'PASS: no printer ports reachable from here.' if verdict == 'PASS' else 'FAIL: printer ports are still reachable from here.'}")
+    print(f"[gremlin] {report['verdict']} - {report['explanation']}")
     print(f"  {report['note']}")
+    if report["liveness_note"]:
+        print(f"  {report['liveness_note']}")
 
 
 def _json(value: object) -> str:
@@ -152,21 +164,41 @@ def main(argv: Optional[list[str]] = None) -> int:
             ))
             print(f"[gremlin] Notice saved to {output}.")
         elif args.command == "demo":
-            workflow.run_demo(args, identify=identify)
-            print("[gremlin] One notice submitted.")
+            reported = []
+
+            def show_stage(report):
+                message = workflow.print_status_text(report)
+                print(f"[gremlin] {message}", flush=True)
+                reported.append(message)
+
+            try:
+                result = workflow.run_demo(args, identify=identify, on_status=show_stage)
+                if workflow.print_status_text(result) not in reported:
+                    show_stage(result)
+                return 1 if result["status"] == "failed" else 0
+            finally:
+                print(workflow.PHYSICAL_PRINT_NOTE, flush=True)
         elif args.command == "gui":
             from .gui.server import serve
             serve(args.port, open_browser=not args.no_browser)
         elif args.command == "baseline":
-            workflow.baseline(args.targets, _selected_ports(args), args.out, args.label)
+            allowed = [port for group in args.allow for port in group]
+            ports = _selected_ports(args)
+            if args.ports is None:
+                ports = (*ports, *allowed)
+            workflow.baseline(args.targets, ports, args.out, args.label, expect=args.expect, allow=allowed)
             print(f"[gremlin] Baseline saved to {args.out}.")
+        elif args.command == "snapshot":
+            workflow.snapshot(args.targets, _selected_ports(args), args.out, args.label)
+            print(f"[gremlin] Reference snapshot saved to {args.out}.")
         elif args.command == "verify":
-            report = workflow.verify(args.baseline_file)
+            report = workflow.verify(args.baseline_file, reference=args.reference,
+                                     printer_online=args.printer_online)
             if args.json:
                 print(_json(report))
             else:
                 _print_verify(report)
-            return 0 if report["verdict"] == "PASS" else 3
+            return EXIT_CODES[report["verdict"]]
     except (OSError, ValueError, safety.PrintRefused, http.client.HTTPException,
             EOFError, KeyboardInterrupt) as exc:
         print(f"[gremlin] {exc or 'Interrupted.'}", file=sys.stderr)

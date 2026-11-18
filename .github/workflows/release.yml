@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+            extension: .exe
+          - runner: macos-latest
+            platform: macos
+            extension: ''
+          - runner: ubuntu-latest
+            platform: linux
+            extension: ''
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: python -m pip install . pyinstaller pillow
+      - name: Build standalone executable
+        run: python -m PyInstaller --noconfirm --workpath packaging/build --distpath packaging/dist packaging/printer-gremlin.spec
+      - name: Smoke-test executable
+        env:
+          BINARY: ./packaging/dist/printer-gremlin${{ matrix.extension }}
+        run: |
+          "$BINARY" --help
+          "$BINARY" preview --format pdf -o packaging/dist/smoke.pdf
+          "$BINARY" preview --format escpos --paper 58 -o packaging/dist/smoke.bin
+          python -c "from pathlib import Path; assert Path('packaging/dist/smoke.pdf').read_bytes().startswith(b'%PDF'); assert Path('packaging/dist/smoke.bin').stat().st_size > 0"
+      - name: Stage executable
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ runner.arch }}
+          EXTENSION: ${{ matrix.extension }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="v$(python -c 'from importlib.metadata import version; print(version("printer-gremlin"))')"
+          fi
+          mkdir -p packaging/dist/release
+          cp "packaging/dist/printer-gremlin${EXTENSION}" "packaging/dist/release/printer-gremlin-${VERSION}-${PLATFORM}-${ARCH,,}${EXTENSION}"
+      - name: Build wheel and source distribution
+        if: matrix.platform == 'linux'
+        run: |
+          python -m pip install build
+          python -m build --outdir packaging/dist/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-${{ runner.arch }}
+          path: packaging/dist/release/
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Generate SHA256 checksums
+        working-directory: release
+        run: |
+          sha256sum -- * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
+      - uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: release/*
+          body: |
+            The standalone binaries are unsigned. Windows SmartScreen and macOS
+            Gatekeeper warnings are expected.
+
+            Verify the SHA-256 digest before running a downloaded binary. Compare
+            the output of the command below with the entry for that filename in
+            `SHA256SUMS.txt`.
+
+            - Windows PowerShell — `Get-FileHash -Algorithm SHA256 <filename>`
+            - macOS — `shasum -a 256 <filename>`
+            - Linux — `sha256sum <filename>`
+
+            For authorized use only. Use Printer Gremlin only on printers and
+            networks you own or have explicit permission to test.

@@ -55,7 +55,7 @@ def test_execute_one_job(localhost_tcp, tmp_path, local_plan):
                 return stream.read()
 
         job = pool.submit(receive)
-        assert workflow.execute_print(plan, plan.ip, True, governor)["status"] == "sent"
+        assert workflow.execute_print(plan, plan.ip, True, governor)["status"] == "submitted"
         assert job.result() == plan.data
         with pytest.raises(safety.PrintRefused, match="cooldown"):
             workflow.execute_print(plan, plan.ip, True, governor)
@@ -107,6 +107,13 @@ def test_gui_api(localhost_tcp, tmp_path, monkeypatch, local_plan):
             status, data = request("/api/print", {
                 "plan_id": plan_id, "typed_address": "127.0.0.2", "authorized": True,
             }, **token)
+            assert status == 200
+            job = json.loads(data)
+            for _ in range(100):
+                status, data = request("/api/print-status", job, **token)
+                if status != 200:
+                    break
+                time.sleep(.01)
             assert status == 400 and json.loads(data)["error"] == "Address confirmation declined."
         finally:
             server.shutdown()
@@ -129,7 +136,7 @@ def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
     server.origin = "http://127.0.0.1:8000"
     server.token = "test-only-token"
     server.governor = safety.PrintGovernor(directory=tmp_path)
-    server.lock, server.jobs, server.plans = Lock(), {}, {}
+    server.lock, server.jobs, server.plans, server.print_jobs = Lock(), {}, {}, {}
 
     def request(path, body=None, host="127.0.0.1:8000", token=server.token, origin=None):
         payload = b"" if body is None else json.dumps(body).encode()
@@ -177,11 +184,16 @@ def test_gui_http_dispatch_without_sockets(tmp_path, monkeypatch, local_plan):
         status, data = request("/api/print", {
             "plan_id": plan["plan_id"], "typed_address": "127.0.0.2", "authorized": True,
         })
+        assert status == 200
+        job = json.loads(data)
+        with pytest.raises(safety.PrintRefused):
+            server.print_jobs[job["job_id"]][0].result(timeout=3)
+        status, data = request("/api/print-status", job)
         assert status == 400 and json.loads(data)["error"] == "Address confirmation declined."
         status, data = request("/api/baseline", {"targets": ["127.0.0.1"], "ports": [9100]})
         assert status == 200
         status, data = request("/api/verify", {"id": json.loads(data)["id"]})
-        assert status == 200 and json.loads(data)["verdict"] == "FAIL"
+        assert status == 200 and json.loads(data)["verdict"] == "EXPOSED"
 
 
 def test_execute_serializes_concurrent_requests(tmp_path, local_plan, monkeypatch):
@@ -190,8 +202,11 @@ def test_execute_serializes_concurrent_requests(tmp_path, local_plan, monkeypatc
     governor = safety.PrintGovernor(directory=tmp_path)
     plan = local_plan()
     jobs = []
-    monkeypatch.setattr(workflow.transports, "send_raw",
-                        lambda ip, data, port: jobs.append((ip, port, data)))
+    def send_raw(ip, data, port, *, on_submit):
+        jobs.append((ip, port, data))
+        on_submit()
+
+    monkeypatch.setattr(workflow.transports, "send_raw", send_raw)
     start = Barrier(2, timeout=3)
 
     def execute():
@@ -204,5 +219,36 @@ def test_execute_serializes_concurrent_requests(tmp_path, local_plan, monkeypatc
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         first, second = pool.submit(execute), pool.submit(execute)
-        assert sorted([first.result(), second.result()]) == ["refused", "sent"]
+        assert sorted([first.result(), second.result()]) == ["refused", "submitted"]
     assert jobs == [(plan.ip, plan.port, plan.data)]
+
+
+def test_gui_print_status_during_background_work(tmp_path, local_plan, monkeypatch):
+    from threading import Event, Lock
+
+    server = GremlinServer.__new__(GremlinServer)
+    server.lock, server.print_jobs = Lock(), {}
+    server.governor = safety.PrintGovernor(directory=tmp_path)
+    plan = local_plan()
+    server.plans = {"plan": (plan, "80", True)}
+    submitted, finish = Event(), Event()
+
+    def send_raw(ip, data, port, *, on_submit):
+        on_submit()
+        submitted.set()
+        assert finish.wait(3)
+
+    monkeypatch.setattr(workflow.transports, "send_raw", send_raw)
+    with ThreadPoolExecutor(max_workers=1) as server.worker:
+        job = server.action("/api/print", {"plan_id": "plan", "typed_address": plan.ip,
+                                          "authorized": True})
+        try:
+            assert submitted.wait(2)
+            progress = server.action("/api/print-status", job)
+            assert not progress["done"] and progress["status"] == "submitted"
+        finally:
+            finish.set()
+        server.print_jobs[job["job_id"]][0].result(timeout=3)
+        result = server.action("/api/print-status", job)
+        assert result["done"] and result["status"] == "submitted"
+        assert result["note"] == workflow.PHYSICAL_PRINT_NOTE

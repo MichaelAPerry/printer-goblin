@@ -52,20 +52,30 @@ To remediate these findings and secure your infrastructure against similar scans
 
 ## Prove the fix worked
 
-Before closing the ticket, verify that your remediation was successful. Do not rely solely on visual inspection or internal logs; use the tool itself for validation.
+1. From the network segment you want to test, record a baseline before applying the fix. All selected ports are expected to be blocked by default. Add `--allow 631` if IPP should stay reachable from that segment.
 
-From a vantage point on the network segment that **should not** be able to reach the printer:
-1.  Record the current reachability (this does not print anything):
     ```bash
     printer-gremlin baseline <printer-ip> --out before.json
     ```
-2.  Apply the security fixes detailed above.
-3.  From the **same** restricted location, run the verification command:
+
+2. After applying the fix, take a reference snapshot from a network that can still reach the printer. The snapshot must show an open port for each printer and be at most 30 minutes old.
+
     ```bash
-    printer-gremlin verify before.json
+    printer-gremlin snapshot <printer-ip> --out ref.json
     ```
 
-If the tool outputs **PASS**, it confirms that no printer ports were reachable from that specific vantage point. Note that this test only proves isolation from where you ran it. If your network has multiple sensitive segments (e.g., Dev, Prod, Guest), repeat this process from each segment that is required to be blocked to ensure complete coverage.
+3. Back on the baseline network, run verification. In the GUI, choose the snapshot file in the Verify section.
+
+    ```bash
+    printer-gremlin verify before.json --reference ref.json
+    ```
+
+- **PASS (0)** means the selected ports match the policy.
+- **EXPOSED (3)** means a port that should be blocked is open.
+- **OVER-BLOCKED (5)** means a port that should stay reachable is unavailable.
+- **INCONCLUSIVE (4)** means a silent printer may be offline. Take a fresh reference snapshot or use `--printer-online` if you can confirm it is online. The report marks this assertion as weaker evidence than a network response.
+
+Results apply only from the network where you ran verification. Repeat for each segment you need to test.
 
 ## About Printer Gremlin
 

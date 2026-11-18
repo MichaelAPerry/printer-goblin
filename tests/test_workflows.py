@@ -50,20 +50,20 @@ def test_verify_localhost(tmp_path, localhost_tcp):
         saved = verify.baseline([ip], [port], filename, "printer VLAN")
         assert saved["vantage"]["source_ips"][ip] == ip
         report = verify.compare(filename)
-        assert report["verdict"] == "FAIL"
-        assert report["results"][ip][str(port)]["classification"] == "STILL EXPOSED"
+        assert report["verdict"] == "EXPOSED"
+        assert report["results"][ip][str(port)]["classification"] == "EXPOSED"
         assert cli.main(["verify", str(filename)]) == 3
     report = verify.compare(filename)
     assert report["verdict"] == "PASS"
-    assert report["results"][ip][str(port)]["classification"] == "isolated"
+    assert report["results"][ip][str(port)]["classification"] == "BLOCKED"
     assert "vantage point" in report["note"]
     previous = verify.baseline([ip], [port], filename, "closed")
     assert previous["results"][ip][str(port)] == "closed"
-    assert verify.compare(filename)["results"][ip][str(port)]["classification"] == "unchanged-closed"
+    assert verify.compare(filename)["results"][ip][str(port)]["classification"] == "BLOCKED"
     with socket.socket() as listener:
         listener.bind((ip, port))
         listener.listen()
-        assert verify.compare(filename)["results"][ip][str(port)]["classification"] == "newly exposed"
+        assert verify.compare(filename)["results"][ip][str(port)]["classification"] == "EXPOSED"
 
 
 def test_demo_refusals(monkeypatch, tmp_path):
@@ -129,25 +129,69 @@ def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
     assert jobs[0].rstrip().endswith(b"showpage")
 
 
-def test_verify_transitions_without_sockets(monkeypatch, tmp_path):
+@pytest.mark.parametrize("states,allowed,classes,verdict,code", [
+    (("open", "closed"), (631,), ("EXPOSED", "OVER-BLOCKED"), "EXPOSED", 3),
+    (("filtered", "open"), (631,), ("BLOCKED", "OK"), "PASS", 0),
+    (("filtered", "closed"), (), ("BLOCKED", "BLOCKED"), "PASS", 0),
+    (("filtered", "filtered"), (), ("UNVERIFIED", "UNVERIFIED"), "INCONCLUSIVE", 4),
+    (("filtered", "filtered"), (631,), ("UNVERIFIED", "OVER-BLOCKED"), "OVER-BLOCKED", 5),
+])
+def test_verify_policy_and_exit_codes(monkeypatch, tmp_path, capsys, states, allowed, classes, verdict, code):
     from printer_gremlin import net
 
     ip = "127.0.0.1"
-    states = {9100: "open", 631: "open", 515: "closed", 80: "filtered"}
-    monkeypatch.setattr(net, "tcp_open", lambda host, port, timeout, accurate=False: states[port])
+    ports = (9100, 631)
+    results = dict(zip(ports, states))
+    monkeypatch.setattr(net, "tcp_open", lambda host, port, timeout, accurate=False: results[port])
     monkeypatch.setattr(net, "source_ip", lambda host: ip)
     path = tmp_path / "baseline.json"
-    verify.baseline([ip], states, path, "before")
-    states.update({9100: "filtered", 515: "open", 80: "closed"})
-    report = verify.compare(path)
-    assert [report["results"][ip][str(port)]["classification"] for port in states] == [
-        "isolated", "STILL EXPOSED", "newly exposed", "unchanged-closed",
-    ]
-    assert report["verdict"] == "FAIL"
-    assert verify.compare(path, ports=[9100])["verdict"] == "PASS"
+    args = ["baseline", ip, "--out", str(path), "--ports", "9100,631", "--expect", "deny"]
+    for port in allowed:
+        args += ["--allow", str(port)]
+    assert cli.main(args) == 0
+    saved = json.loads(path.read_text())
+    assert saved["policy"] == {str(p): "allow" if p in allowed else "deny" for p in ports}
+    capsys.readouterr()
+    assert cli.main(["verify", str(path), "--json"]) == code
+    report = json.loads(capsys.readouterr().out)
+    assert report["verdict"] == verdict
+    assert tuple(row["classification"] for row in report["results"][ip].values()) == classes
+    assert report["liveness"][ip] == (["verify-response"] if states[1] != "filtered" else [])
 
 
-def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_path):
+def test_verify_reference_and_attestation(monkeypatch, tmp_path, capsys):
+    from datetime import datetime, timedelta, timezone
+
+    ip = "127.0.0.1"
+    other = "127.0.0.2"
+    state = "open"
+    monkeypatch.setattr(verify.net, "tcp_open", lambda *args: state)
+    monkeypatch.setattr(verify.net, "source_ip", lambda host: ip)
+    path, ref = tmp_path / "baseline.json", tmp_path / "ref.json"
+    saved = verify.baseline([ip], [9100], path, "legacy")
+    del saved["policy"]
+    path.write_text(json.dumps(saved))
+    assert cli.main(["snapshot", ip, "--out", str(ref), "--ports", "9100"]) == 0
+    snapshot = json.loads(ref.read_text())
+    assert snapshot["reference"] is True
+    state = "filtered"
+    assert verify.compare(path)["verdict"] == "INCONCLUSIVE"
+    assert verify.compare(path, reference=ref)["liveness"][ip] == ["reference-snapshot"]
+    capsys.readouterr()
+    assert cli.main(["verify", str(path), "--printer-online", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["liveness"][ip] == ["operator-asserted"]
+    assert "weaker" in report["liveness_note"]
+    snapshot["results"][other] = snapshot["results"].pop(ip)
+    with pytest.raises(ValueError, match="open port for 127.0.0.1"):
+        verify.compare(path, reference=snapshot)
+    snapshot["results"][ip] = snapshot["results"].pop(other)
+    snapshot["created"] = (datetime.now(timezone.utc) - timedelta(minutes=31)).isoformat()
+    with pytest.raises(ValueError, match="30 minutes"):
+        verify.compare(path, reference=snapshot)
+
+
+def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_path, capsys):
     from printer_gremlin import net
 
     ip = "127.0.0.1"
@@ -193,6 +237,12 @@ def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_p
     args = ["demo", ip, "--format", "ps", "--yes-i-am-authorized"]
     assert cli.main(args) == 0
     assert actions == ["confirm", "connect", "send", "shutdown", "receive", "close"]
+    output = capsys.readouterr().out
+    assert "Submitted (raw port 9100 gives no confirmation)." in output
+    assert output.rstrip().endswith("Physical print not confirmed by software - check the printer.")
+    assert "Accepted" not in output and "Completed" not in output
+    records = [json.loads(line) for line in (tmp_path / "audit.log").read_text().splitlines()]
+    assert records[-1]["event"] == records[-1]["status"] == "submitted"
     assert cli.main(args) == 1
     assert actions.count("connect") == 1
     assert ip in json.loads((tmp_path / "print-history.json").read_text())

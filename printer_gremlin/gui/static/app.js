@@ -120,6 +120,7 @@ form('identify-form', async () => {
   for (const finding of device.findings) {
     const item = element('li');
     item.append(element('span', finding.severity.toUpperCase(), 'chip ' + finding.severity),
+                element('span', finding.basis, 'chip'),
                 document.createTextNode(' ' + finding.title + ' · ' + finding.detail));
     list.append(item);
   }
@@ -215,9 +216,14 @@ form('print-form', async () => {
   const status = byId('print-status');
   status.textContent = 'Submitting…';
   try {
-    await api('print', {plan_id: activePlan.plan_id, typed_address: byId('typed').value,
-                        authorized: byId('authorized').checked});
-    status.textContent = 'One notice submitted.';
+    const job = await api('print', {plan_id: activePlan.plan_id, typed_address: byId('typed').value,
+                                    authorized: byId('authorized').checked});
+    let result;
+    do {
+      await new Promise(resolve => setTimeout(resolve, 350));
+      result = await api('print-status', job);
+      if (result.message) status.textContent = result.message;
+    } while (!result.done);
     byId('typed').value = '';
     byId('authorized').checked = false;
   } catch (error) {
@@ -243,25 +249,46 @@ async function refreshBaselines(selected) {
 form('baseline-form', async () => {
   const targets = Array.from(byId('hosts').querySelectorAll('input:checked'), node => node.value);
   if (!targets.length && identified) targets.push(identified);
-  const saved = await api('baseline', {targets, ports: ports(), label: byId('baseline-label').value});
+  const allowed = byId('baseline-allow').value.trim();
+  const allow = allowed ? allowed.split(',').map(part => Number(part.trim())) : [];
+  const saved = await api('baseline', {targets, ports: ports(), allow,
+                                       label: byId('baseline-label').value});
   await refreshBaselines(saved.id);
   byId('verify-result').textContent = 'Baseline saved.';
 });
 
 form('verify-form', async () => {
-  const report = await api('verify', {id: byId('baselines').value});
+  const file = byId('reference').files[0];
+  let reference = null;
+  if (file) {
+    if (file.size > 65536) throw new Error('Reference file exceeds 64 KiB.');
+    reference = JSON.parse(await file.text());
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+      throw new Error('Choose a reference snapshot JSON file.');
+    }
+  }
+  const report = await api('verify', {id: byId('baselines').value, reference,
+                                     printer_online: byId('printer-online').checked});
   const list = element('ul');
   for (const [ip, results] of Object.entries(report.results)) {
     for (const [port, result] of Object.entries(results)) {
-      list.append(element('li', ip + ' · TCP ' + port + ' · ' + result.classification
-                          + ' (' + result.before + ' → ' + result.after + ')'));
+      list.append(element('li', ip + ' · TCP ' + port + ' · expect ' + result.policy
+                          + ' · ' + result.classification + ' (' + result.before + ' → '
+                          + result.after + ')'));
     }
+    list.append(element('li', 'Liveness for ' + ip + ' · '
+                        + (report.liveness[ip].join(', ') || 'none')));
   }
   const pass = report.verdict === 'PASS';
   byId('verify-result').replaceChildren(
-    element('strong', pass ? 'PASS' : 'EXPOSED', pass ? 'chip pass' : 'chip high'),
-    element('p', report.note), list
+    element('strong', report.verdict, pass ? 'chip pass' : 'chip high'),
+    element('p', report.explanation), element('p', report.note), list
   );
+  if (report.vantage.behind_wsl_nat) {
+    byId('verify-result').append(element('p',
+      "Probed from inside WSL. The network sees this PC's Windows address."));
+  }
+  if (report.liveness_note) byId('verify-result').append(element('p', report.liveness_note));
 });
 
 const mascot = new Image();

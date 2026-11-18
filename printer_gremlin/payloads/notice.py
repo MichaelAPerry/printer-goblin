@@ -55,7 +55,7 @@ def device_lines(fp: Fingerprint) -> list[str]:
             if any(serial in value.casefold() for serial in private_values):
                 value = "(redacted)"
             result.append(f"{label}: {value[:64]}")
-    kind = {"office": "office printer", "thermal-escpos": "thermal receipt printer"}
+    kind = {"office": "office printer", "thermal": "thermal receipt printer"}
     return [*result, f"Type: {kind.get(fp.kind, 'unknown')}"]
 
 

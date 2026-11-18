@@ -133,8 +133,9 @@ def test_pwg_print_job_uses_media_and_accepts_substitution(monkeypatch, tmp_path
             pass
 
     monkeypatch.setattr(ipp.http.client, "HTTPConnection", Connection)
+    monkeypatch.setattr(ipp, "get_job_attributes", lambda *args, **kwargs: {"job-state": [9]})
     governor = safety.PrintGovernor(directory=tmp_path)
     with pytest.raises(safety.PrintRefused, match="requires IPP"):
         workflow.execute_print(replace(plan, protocol="raw"), ip, True, governor)
     result = workflow.execute_print(plan, ip, True, governor)
-    assert (result["status"], result["ipp_status"], result["job_id"]) == ("sent", 1, 7)
+    assert (result["status"], result["ipp_status"], result["job_id"]) == ("completed", 1, 7)

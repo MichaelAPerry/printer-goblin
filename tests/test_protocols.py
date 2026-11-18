@@ -85,7 +85,7 @@ def test_ipp_fallback_and_single_submission(localhost_tcp):
 def test_ipp_query_uses_fallback_but_print_job_is_one_shot(monkeypatch):
     paths = []
 
-    def post(host, port, path, timeout, tls, request):
+    def post(host, port, path, timeout, request, on_submit=None):
         paths.append(path)
         if path == "/ipp/print":
             return 404, b""

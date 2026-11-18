@@ -28,6 +28,12 @@ It works seamlessly with office printers using PDF, PostScript, PCL, or PWG Rast
 
 ## Getting Started
 
+### Download
+
+Get the standalone executable for Windows, macOS, or Linux from [GitHub Releases](https://github.com/MichaelAPerry/printer-goblin/releases). On macOS and Linux, make the downloaded file executable with `chmod +x <filename>`. Run it without arguments to open the local web GUI. The release notes explain how to verify each download against `SHA256SUMS.txt`.
+
+### Install from source
+
 To get up and running, you'll need Python 3.10 or newer. The only external dependency is the `segno` library for generating QR codes.
 
 Clone the repo, set up a virtual environment, and install:

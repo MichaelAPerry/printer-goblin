@@ -73,19 +73,23 @@
         <button id="submit-print" disabled>Print one notice</button>
       </form>
       <p id="print-status" role="status"></p>
+      <p>Physical print not confirmed by software - check the printer.</p>
     </section>
     <section id="verify">
       <h2>5. Verify</h2>
       <p>Select discovered addresses in the Baseline column, or identify a printer by address.</p>
       <form id="baseline-form" class="controls">
         <label>Baseline label <input id="baseline-label" placeholder="Before segmentation change"></label>
+        <label>Allow ports from this network <input id="baseline-allow" placeholder="631"></label>
         <button>Save baseline</button>
       </form>
       <form id="verify-form" class="controls">
         <label>Saved baseline <select id="baselines" required></select></label>
+        <label>Reference snapshot (optional) <input id="reference" type="file" accept=".json,application/json"></label>
+        <label><input id="printer-online" type="checkbox"> I confirm the printer is online</label>
         <button>Run verification</button>
       </form>
-      <p>This result applies only from this network vantage point. Run both checks from the segment that should be blocked.</p>
+      <p>This result applies only from this network vantage point. Run the baseline and verification from the same network segment.</p>
       <div id="verify-result" aria-live="polite"></div>
     </section>
   </main>

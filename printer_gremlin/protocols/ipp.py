@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import http.client
-import ssl
 import struct
 from typing import Optional
 
@@ -21,18 +20,22 @@ _MAX_RESPONSE = 1024 * 1024
 def encode_request(operation: int, printer_uri: str, *, request_id: int = 1,
                    requested_attributes: tuple[str, ...] = (),
                    document_format: Optional[str] = None,
-                   job_name: Optional[str] = None, data: bytes = b"") -> bytes:
+                   job_name: Optional[str] = None, data: bytes = b"",
+                   job_id: Optional[int] = None) -> bytes:
     """Encode one operation group, optionally followed by a document."""
     result = bytearray(struct.pack(">BBHI", 1, 1, operation, request_id) + b"\x01")
 
-    def attr(tag: int, name: str, value: str) -> None:
-        key, raw = name.encode("ascii"), value.encode("utf-8")
+    def attr(tag: int, name: str, value: str | int) -> None:
+        key = name.encode("ascii")
+        raw = struct.pack(">i", value) if isinstance(value, int) else value.encode("utf-8")
         result.extend(bytes([tag]) + struct.pack(">H", len(key)) + key)
         result.extend(struct.pack(">H", len(raw)) + raw)
 
     attr(0x47, "attributes-charset", "utf-8")
     attr(0x48, "attributes-natural-language", "en")
     attr(0x45, "printer-uri", printer_uri)
+    if job_id is not None:
+        attr(0x21, "job-id", job_id)
     attr(0x42, "requesting-user-name", "printer-gremlin")
     for index, name in enumerate(requested_attributes):
         attr(0x44, "requested-attributes" if index == 0 else "", name)
@@ -108,26 +111,20 @@ def decode_response(data: bytes) -> dict[str, list[object]]:
     return _decode_response(data)[2]
 
 
-def _uri(host: str, port: int, path: str, tls: bool) -> str:
+def _uri(host: str, port: int, path: str) -> str:
     authority = f"[{host.replace('%', '%25')}]" if ":" in host else host
-    scheme = "ipps" if tls else "ipp"
-    return f"{scheme}://{authority}:{port}{path}"
+    return f"ipp://{authority}:{port}{path}"
 
 
-def _post(host: str, port: int, path: str, timeout: float, tls: bool,
-          request: bytes) -> tuple[int, bytes]:
-    if tls:
-        # Prototype support for printers with self-signed certificates.
-        # This encrypts the connection but does not authenticate the printer.
-        connection = http.client.HTTPSConnection(
-            host, port, timeout=timeout, context=ssl._create_unverified_context()
-        )
-    else:
-        connection = http.client.HTTPConnection(host, port, timeout=timeout)
+def _post(host: str, port: int, path: str, timeout: float,
+          request: bytes, on_submit=None) -> tuple[int, bytes]:
+    connection = http.client.HTTPConnection(host, port, timeout=timeout)
     try:
         connection.request("POST", path, request, {
             "Content-Type": "application/ipp", "Content-Length": str(len(request)),
         })
+        if on_submit is not None:
+            on_submit()
         response = connection.getresponse()
         if not 200 <= response.status < 300:
             return response.status, b""
@@ -149,20 +146,19 @@ def _checked_response(http_status: int, body: bytes) -> tuple[int, dict[str, lis
 
 
 def get_printer_attributes(host: str, port: int = 631, path: str = "/ipp/print",
-                           timeout: float = 5, *, tls: bool = False) -> dict[str, list[object]]:
+                           timeout: float = 5) -> dict[str, list[object]]:
     """Query printer attributes, trying common paths on HTTP 400 or 404."""
-    return query_printer(host, port, path, timeout, tls=tls)[0]
+    return query_printer(host, port, path, timeout)[0]
 
 
 def query_printer(host: str, port: int = 631, path: str = "/ipp/print",
-                  timeout: float = 5, *, tls: bool = False
-                  ) -> tuple[dict[str, list[object]], str]:
+                  timeout: float = 5) -> tuple[dict[str, list[object]], str]:
     """Return attributes and the path that accepted the read-only query."""
     host = str(resolve_target(host))
     for endpoint in dict.fromkeys((path, "/", "/printers/")):
-        request = encode_request(0x000B, _uri(host, port, endpoint, tls),
+        request = encode_request(0x000B, _uri(host, port, endpoint),
                                  requested_attributes=REQUESTED_ATTRIBUTES)
-        http_status, body = _post(host, port, endpoint, timeout, tls, request)
+        http_status, body = _post(host, port, endpoint, timeout, request)
         if http_status in (400, 404):
             continue
         status, attributes = _checked_response(http_status, body)
@@ -174,11 +170,27 @@ def query_printer(host: str, port: int = 631, path: str = "/ipp/print",
 
 def print_job(host: str, data: bytes, document_format: str, port: int = 631,
               path: str = "/ipp/print", job_name: str = "Printer Gremlin notice",
-              timeout: float = 30, *, tls: bool = False) -> tuple[int, Optional[int]]:
+              timeout: float = 30, *, on_submit=None) -> tuple[int, Optional[int]]:
     """Submit a single Print-Job request and return its status and job ID."""
     host = str(resolve_target(host))
-    request = encode_request(0x0002, _uri(host, port, path, tls),
+    request = encode_request(0x0002, _uri(host, port, path),
                              document_format=document_format, job_name=job_name, data=data)
-    status, attributes = _checked_response(*_post(host, port, path, timeout, tls, request))
+    status, attributes = _checked_response(*_post(host, port, path, timeout, request, on_submit))
     job_id = next(iter(attributes.get("job-id", [])), None)
-    return status, job_id if type(job_id) is int else None
+    return status, job_id if type(job_id) is int and job_id > 0 else None
+
+
+def get_job_attributes(host: str, job_id: int, port: int = 631, path: str = "/ipp/print",
+                       timeout: float = 5) -> dict[str, list[object]]:
+    """Read the state, reasons, and impression count for a specific IPP job."""
+    host = str(resolve_target(host))
+    if type(job_id) is not int or not 1 <= job_id <= 0x7fffffff:
+        raise ValueError("Invalid IPP job ID.")
+    request = encode_request(
+        0x0009, _uri(host, port, path), job_id=job_id,
+        requested_attributes=("job-state", "job-state-reasons", "job-impressions-completed"),
+    )
+    status, attributes = _checked_response(*_post(host, port, path, timeout, request))
+    if status >= 0x0100:
+        raise OSError(f"Get-Job-Attributes failed with IPP status 0x{status:04x}")
+    return attributes

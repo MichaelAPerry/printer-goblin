@@ -6,7 +6,7 @@
 |---|---|---|
 | [PRET](https://github.com/RUB-NDS/PRET) (RUB-NDS) | Interactive PostScript/PJL/PCL exploitation shell; checks language support via IPP, HTTP and SNMP | Built for attacks (file system access, NVRAM, DoS). We borrow the idea of fingerprinting via IPP/SNMP/HTTP before choosing a language, but none of the attack surface. Needs ImageMagick/Ghostscript. |
 | [python-escpos](https://python-escpos.readthedocs.io/) | Full ESC/POS driver | Exposes `cashdraw()` (ESC p pulse) and NV-memory commands. We wrote a ~150-line allowlisted builder instead so drawer kicks are impossible by construction. |
-| [pyipp](https://pypi.org/project/pyipp/) / [ippx](https://pypi.org/project/ippx/) | IPP clients | Async + aiohttp/httpx dependencies. We need only two operations (Get-Printer-Attributes, Print-Job), so a stdlib codec stays small and auditable. |
+| [pyipp](https://pypi.org/project/pyipp/) / [ippx](https://pypi.org/project/ippx/) | IPP clients | Async + aiohttp/httpx dependencies. We need only three operations (Get-Printer-Attributes, Print-Job, Get-Job-Attributes), so a stdlib codec stays small and auditable. |
 | nmap NSE (`snmp-sysdescr`, `http-title`, port 9100 probes) | General scanning | Great for discovery, but it is a separate install and some printer scripts send PJL to 9100, which prints garbage on receipt printers. |
 
 Dependency budget: Python ≥3.10 standard library + [`segno`](https://pypi.org/project/segno/) (pure-Python QR generation).
@@ -34,7 +34,7 @@ printer_gremlin/
   verify.py       before/after reachability baseline and comparison
   workflow.py     shared assessment, rendering plans, guarded submission, and audit
   gui/            loopback HTTP server, token-protected API, and static browser interface
-  cli.py          discover / identify / preview / demo / baseline / verify / gui
+  cli.py          discover / identify / preview / demo / baseline / snapshot / verify / gui
 ```
 
 ## Safety design
@@ -48,4 +48,10 @@ printer_gremlin/
 
 ## Verification semantics
 
-`baseline` records TCP reachability (open/closed/filtered) from the current host. `verify` re-probes the same host/ports and reports `isolated`, `STILL EXPOSED`, `newly exposed`, or `unchanged-closed`. A result only applies to the network position it was run from, so run both from the segment that should be blocked.
+`baseline` saves TCP reachability and per-port allow or deny expectations for its vantage point. `verify` reports PASS, EXPOSED, OVER-BLOCKED, or INCONCLUSIVE against that policy. A silent denied port needs same-target liveness evidence from an open or refused connection during verification, an allowed-network snapshot at most 30 minutes old, or a weaker operator assertion.
+
+## Print status
+
+Raw printing reports socket submission only. Plain IPP can report acceptance with a job ID and polls Get-Job-Attributes for completion or failure for up to about 90 seconds. The audit log records the final stage. The GUI runs submission and tracking in its background worker.
+
+IPPS is not supported in v0.1; planned with certificate pinning (trust-on-first-use) rather than an unverified context.
