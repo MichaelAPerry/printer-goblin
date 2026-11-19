@@ -68,6 +68,8 @@ def tcp_open(host: str, port: int, timeout: float, accurate: bool = False) -> st
 
 _probe_lock = threading.Lock()
 _next_probe = 0.0
+PROBE_RATE = 200   # connection attempts started per second, across all callers
+MAX_WORKERS = 64   # connection attempts in flight at once
 
 
 def probe_many(
@@ -81,11 +83,11 @@ def probe_many(
             delay = _next_probe - time.monotonic()
             if delay > 0:
                 time.sleep(delay)
-            _next_probe = time.monotonic() + 1 / 200
+            _next_probe = time.monotonic() + 1 / PROBE_RATE
         host, port = pair
         return host, port, tcp_open(host, port, timeout, accurate)
 
-    limit = max(1, min(64, workers))
+    limit = max(1, min(MAX_WORKERS, workers))
     remaining = iter(pairs)
     with ThreadPoolExecutor(max_workers=limit) as pool:
         pending = deque(pool.submit(probe, pair) for pair in islice(remaining, limit))

@@ -136,6 +136,22 @@ def _print_verify(report: dict) -> None:
         print(f"  {report['liveness_note']}")
 
 
+def _scan_go_ahead(cidr: str, ports, ask=input) -> bool:
+    """Show the time estimate for a scan; large ranges need a yes when interactive."""
+    estimate = discovery.scan_estimate(cidr, ports)
+    if estimate["seconds"] >= 60 or estimate["large"]:
+        print(f"[goblin] {estimate['message']}", file=sys.stderr, flush=True)
+    if estimate["large"] and sys.stdin.isatty():
+        try:
+            answer = ask("[goblin] Proceed with this scan? [y/N] ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in ("y", "yes"):
+            print("[goblin] Scan cancelled.", file=sys.stderr)
+            return False
+    return True
+
+
 def _fake_printer_hint(printer: emulator.FakePrinter, *, standalone: bool) -> None:
     ports = ", ".join(f"{logical}->{actual}" for logical, actual in printer.port_map.items())
     out = sys.stdout if standalone else sys.stderr  # keep --json output clean
@@ -196,6 +212,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                     time.sleep(3600)
             except KeyboardInterrupt:
                 print("\n[goblin] Fake printer stopped.")
+        elif args.command in ("discover", "assess") and not _scan_go_ahead(args.cidr, _selected_ports(args)):
+            return 1
         elif args.command == "discover":
             hosts = workflow.discover(args.cidr, _selected_ports(args))["hosts"]
             if args.json:

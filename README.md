@@ -71,7 +71,15 @@ Run `printer-goblin report 192.168.50.23 --baseline before.json` or select **Dow
 
 ## Assess a whole fleet
 
-`printer-goblin assess 192.168.50.0/24` discovers printers in the range (same private-only scope and /22 limit as `discover`), runs the paper-free assessment on each (at most four at a time), and writes one consolidated report: device table, how common each finding is, and ranked configuration recommendations such as "Turn off Telnet on 3 of 20 printers". Nothing is printed on any device. Choose `--format html|md|json|csv`, `--out PATH`, `--ports`, or `--no-validate-job`. In the GUI, use **Assess all (no printing)** after **Discover**, then download the report.
+`printer-goblin assess 192.168.50.0/24` discovers printers in the range (same private-only scope and range limits as `discover`), runs the paper-free assessment on each (at most four at a time), and writes one consolidated report: device table, how common each finding is, and ranked configuration recommendations such as "Turn off Telnet on 3 of 20 printers". Nothing is printed on any device. Choose `--format html|md|json|csv`, `--out PATH`, `--ports`, or `--no-validate-job`. In the GUI, use **Assess all (no printing)** after **Discover**, then download the report.
+
+### Large ranges
+
+Scans will discover and assess private IP ranges up to /16 (65,536 addresses). For any range exceeding /22 (1,024 addresses), the tool displays an estimated duration alongside a warning before execution, requiring confirmation in interactive sessions. This estimate represents a worst-case scenario assuming timeouts for every address; scanning a /24 with the default five ports takes roughly 16 seconds, while a /16 requires approximately 68 minutes. For broader private networks like the entire 10.0.0.0/8 block, scan them incrementally in /16 segments.
+
+### Pages of code instead of the notice?
+
+This occurs when a printer receives a language it doesn't support and prints it as raw text. Raw (port 9100) PostScript and PCL jobs are now wrapped in a PJL header that specifies the job's language. It contains only job start, language switch, and job end commands, and never alters device settings. PDF and PWG Raster are sent exclusively over IPP. Older devices, such as HP LaserJets with JetDirect cards, are now identified via the languages they list over SNMP. If text still appears instead of the notice, choose the PCL format.
 
 ## Try it without a printer
 
@@ -84,14 +92,14 @@ printer-goblin --fake-printer office-open baseline --out demo.json   # then veri
 printer-goblin fake-printer --profile receipt                        # run it in the foreground and watch traffic
 ```
 
-Profiles: `office-open` (IPP Everywhere, SNMP, 9100/515/80), `office-locked` (IPP only, refuses jobs with "not authorized"), and `receipt` (Epson TM-style, SNMP and 9100 only). Demo mode is a CLI flag only; the GUI can be started with it (`printer-goblin --fake-printer office-open gui`) and pointed at `127.0.0.1`.
+Profiles: `office-open` (IPP Everywhere, SNMP, 9100/515/80), `office-locked` (IPP only, refuses jobs with "not authorized"), `office-legacy` (an older JetDirect-style laser: no readable IPP, languages listed over SNMP, raw 9100), and `receipt` (Epson TM-style, SNMP and 9100 only). Demo mode is a CLI flag only; the GUI can be started with it (`printer-goblin --fake-printer office-open gui`) and pointed at `127.0.0.1`.
 
 ## Built to be Polite
 
 Printer Goblin is designed to prove a point without causing trouble:
 
 *   **Network Scope**: It only scans private and link-local networks. Public IP addresses are refused automatically.
-*   **Scan Limits**: Scans are limited to 1,024 addresses to keep scans small and quiet.
+*   **Scan Limits**: Scans stay inside private ranges, up to a /16. Anything over a /22 shows an estimated time and a warning first.
 *   **Authorization Required**: You must explicitly flag that you are authorized AND type the printer's address to trigger a print job.
 *   **Rate Limiting**: At most one notice per printer every 10 minutes, capped at three notices per run.
 *   **No Side Effects**: It never sends cash-drawer commands, buzzer triggers, or printer-memory control codes.

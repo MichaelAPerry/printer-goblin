@@ -51,6 +51,7 @@ class Fingerprint:
     ipp_path: Optional[str] = None
     ipp_ok: bool = False
     snmp_ok: bool = False
+    snmp_languages: list[str] = field(default_factory=list)
     http_ok: bool = False
     firmware: Optional[str] = None
     validate_job_status: Optional[int] = None
@@ -155,6 +156,12 @@ def _add_evidence(result: Fingerprint) -> None:
             if language not in result.languages:
                 result.languages.append(language)
                 result.reasons.append(f"IPP advertises {mime}")
+    for language in result.snmp_languages:
+        # Older printers (e.g. HP JetDirect) list their languages in the Printer-MIB
+        # even when their IPP endpoint can't be read.
+        if language not in result.languages:
+            result.languages.append(language)
+            result.reasons.append(f"SNMP Printer-MIB lists interpreter {language}")
     extra_descriptions = [*result.ipp_attrs.get("printer-info", []), result.http_title]
     if "escpos" not in result.languages and any(
         isinstance(value, str) and _ESCPOS.search(value) for value in extra_descriptions
@@ -227,7 +234,9 @@ def identify(ip: str, *, validate_job: bool = True, assess: bool = True) -> Fing
                 _validate(result)
         if http_future is not None:
             result.http_title, result.http_ok = http_future.result()
-        result.snmp_values, result.snmp_ok = snmp_future.result()
+        snmp_values, result.snmp_ok = snmp_future.result()
+        result.snmp_values = {k: v for k, v in snmp_values.items() if isinstance(v, str)}
+        result.snmp_languages = snmp.languages(snmp_values)
         result.banners = {port: banner for port, future in banners.items() if (banner := future.result())}
         result.tls = {port: future.result() for port, future in tls.items()}
     _add_evidence(result)

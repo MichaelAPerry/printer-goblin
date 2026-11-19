@@ -54,8 +54,12 @@
         <label>Format <select id="format"><option value="auto">Auto</option><option value="pdf">PDF</option><option value="pwg">PWG Raster</option><option value="ps">PostScript</option><option value="pcl">PCL</option><option value="escpos">ESC/POS</option></select></label>
         <label>Protocol <select id="via"><option value="auto">Auto</option><option value="raw">Raw</option><option value="ipp">IPP</option></select></label>
         <label>Destination port <input id="port" type="number" min="1" max="65535" placeholder="Auto"></label>
-        <label>Receipt paper <select id="paper"><option value="80">80 mm</option><option value="58">58 mm</option></select></label>
-        <label class="check"><input id="raster" type="checkbox"> Raster receipt QR</label>
+        <fieldset id="receipt-options" class="controls">
+          <legend>Receipt printers only (ESC/POS)</legend>
+          <label>Paper roll width <select id="paper"><option value="80">80 mm</option><option value="58">58 mm</option></select></label>
+          <label class="check"><input id="raster" type="checkbox"> Render QR code as image (for receipt printers lacking native QR support)</label>
+          <p id="receipt-hint" class="hint"></p>
+        </fieldset>
         <button>Create preview</button>
       </form>
       <div id="preview-result" hidden>
@@ -66,7 +70,7 @@
           <button type="button" data-format="pwg">Download PWG Raster</button>
           <button type="button" data-format="ps">Download PS</button>
           <button type="button" data-format="pcl">Download PCL</button>
-          <button type="button" data-format="escpos">Download ESC/POS</button>
+          <button type="button" data-format="escpos">Download ESC/POS (receipt printers)</button>
         </div>
       </div>
     </section>

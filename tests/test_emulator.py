@@ -46,6 +46,7 @@ def audit(tmp_path):
     ("office-open", [9100, 631, 515, 80], "office", ["pwg-raster", "urf"]),
     ("office-locked", [631], "office", ["pdf", "pwg-raster"]),
     ("receipt", [9100], "thermal", ["escpos"]),
+    ("office-legacy", [9100, 80], "office", ["pcl", "postscript"]),
 ], indirect=["fake"])
 def test_identify(fake, ports, kind, languages):
     fp = identify(HOST)
@@ -102,6 +103,27 @@ def test_office_locked_refuses_cleanly(fake, tmp_path, capsys):
     assert fake.jobs == [] and fake.raw_jobs == []
     assert [r["status"] for r in fake.ipp_requests if r["operation"] in (2, 4)] == [0x0403] * 3
     assert audit(tmp_path)[-1]["event"] == "failed"
+
+
+@pytest.mark.parametrize("fake", ["office-legacy"], indirect=True)
+def test_legacy_office_gets_postscript_with_a_pjl_language_switch(fake):
+    """An old JetDirect-style laser learns languages from SNMP; raw PostScript is
+    framed in PJL so a printer set to PCL doesn't print the job as text."""
+    assert cli.main(["demo", HOST, "--yes-i-am-authorized"]) == 0
+    assert fake.wait_for(lambda: len(fake.raw_jobs) == 1)
+    job = fake.raw_jobs[0]
+    head, _, rest = job.partition(b"%!PS-Adobe-3.0")
+    assert head == (b'\x1b%-12345X@PJL JOB NAME = "Printer Goblin notice"\r\n'
+                    b"@PJL ENTER LANGUAGE = POSTSCRIPT\r\n")
+    body, _, tail = rest.partition(b"\x1b%-12345X@PJL EOJ")
+    assert body.rstrip().endswith(b"showpage")
+    assert tail == b' NAME = "Printer Goblin notice"\r\n\x1b%-12345X'
+
+
+@pytest.mark.parametrize("fake", ["office-legacy"], indirect=True)
+def test_pdf_is_never_sent_raw(fake):
+    assert cli.main(["demo", HOST, "--yes-i-am-authorized", "--format", "pdf", "--via", "raw"]) == 1
+    assert fake.raw_jobs == []
 
 
 @pytest.mark.parametrize("fake", ["receipt"], indirect=True)
@@ -214,4 +236,4 @@ def test_fake_printer_flag_keeps_governor(tmp_path, capsys, typed):
 def test_unknown_profile():
     with pytest.raises(ValueError):
         FakePrinter("nope")
-    assert set(emulator.PROFILES) == {"office-open", "office-locked", "receipt"}
+    assert set(emulator.PROFILES) == {"office-open", "office-locked", "office-legacy", "receipt"}

@@ -4,7 +4,9 @@ Policy (deliberately strict, not configurable from the CLI):
   * Only private (RFC 1918), shared CGNAT (RFC 6598), link-local and IPv6
     unique-local/link-local addresses are in scope. Public addresses are
     refused for both scanning and printing.
-  * A single scan may cover at most MAX_SCAN_HOSTS addresses (a /22).
+  * A single scan may cover at most MAX_SCAN_HOSTS addresses (a /16). Anything
+    bigger would take days at the paced probe rate; scan it one /16 at a time.
+    Scans over LARGE_SCAN_HOSTS (a /22) come with a time estimate and a warning.
   * Hostnames are resolved once and the resolved address must pass the
     same checks, so DNS cannot be used to smuggle in a public target.
 """
@@ -15,7 +17,8 @@ import ipaddress
 import socket
 from typing import List, Union
 
-MAX_SCAN_HOSTS = 1024
+MAX_SCAN_HOSTS = 65536
+LARGE_SCAN_HOSTS = 1024
 
 IPAddress = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
 IPNetwork = Union[ipaddress.IPv4Network, ipaddress.IPv6Network]
@@ -64,18 +67,28 @@ def resolve_target(target: str) -> IPAddress:
     return addr
 
 
-def parse_scan_range(cidr: str) -> List[IPAddress]:
-    """Expand a CIDR for scanning, enforcing scope and size limits."""
+def scan_network(cidr: str) -> IPNetwork:
+    """Parse a CIDR for scanning, enforcing scope and the size ceiling."""
     try:
         net: IPNetwork = ipaddress.ip_network(cidr, strict=False)
     except ValueError as exc:
         raise ScopeError(f"invalid network {cidr!r}: {exc}") from exc
-    if net.num_addresses > MAX_SCAN_HOSTS + 2:
+    if net.num_addresses > MAX_SCAN_HOSTS:
         raise ScopeError(
-            f"{cidr} has {net.num_addresses} addresses; the limit is "
-            f"{MAX_SCAN_HOSTS} (a /22). Split the range or narrow it."
+            f"{cidr} has {net.num_addresses:,} addresses; one scan covers at most a /16 "
+            f"({MAX_SCAN_HOSTS:,}), which already takes over an hour. Scan it one /16 at a time."
         )
     if not (is_in_scope(net.network_address) and is_in_scope(net.broadcast_address)):
         raise ScopeError(f"{cidr} is not entirely inside private/link-local space.")
-    hosts = list(net.hosts()) if net.num_addresses > 2 else list(net)
-    return hosts
+    return net
+
+
+def scan_host_count(cidr: str) -> int:
+    net = scan_network(cidr)
+    return net.num_addresses - 2 if net.num_addresses > 2 else net.num_addresses
+
+
+def parse_scan_range(cidr: str) -> List[IPAddress]:
+    """Expand a CIDR for scanning, enforcing scope and size limits."""
+    net = scan_network(cidr)
+    return list(net.hosts()) if net.num_addresses > 2 else list(net)

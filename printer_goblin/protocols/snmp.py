@@ -16,6 +16,10 @@ OIDS = {
     "hrDeviceDescr": "1.3.6.1.2.1.25.3.2.1.3.1",
     "prtGeneralSerialNumber": "1.3.6.1.2.1.43.5.1.1.17.1",
 }
+# Printer-MIB prtInterpreterLangFamily for the first printer's first interpreters.
+# Values follow IANA PrtInterpreterLangFamilyTC.
+LANG_OIDS = {f"prtInterpreterLangFamily.{n}": f"1.3.6.1.2.1.43.15.1.1.2.1.{n}" for n in range(1, 7)}
+LANG_FAMILIES = {3: "pcl", 6: "postscript", 47: "pcl", 54: "pdf"}  # langPCL, langPS, langPCLXL, langPDF
 
 
 def _tlv(tag: int, value: bytes) -> bytes:
@@ -148,17 +152,18 @@ def decode_response(data: bytes, request_id: Optional[int] = None,
 
 
 def get_printer_values(host: str, community: str = "public", timeout: float = 2,
-                       *, port: int = 161) -> dict[str, str]:
+                       *, port: int = 161) -> dict[str, object]:
     """Collect available printer strings, retrying a timed-out GET once."""
     return probe_printer(host, community, timeout, port=port)[0]
 
 
 def probe_printer(host: str, community: str = "public", timeout: float = 2,
-                  *, port: int = 161) -> tuple[dict[str, str], bool]:
-    """Return printer strings and whether a matching GetResponse arrived."""
+                  *, port: int = 161) -> tuple[dict[str, object], bool]:
+    """Return printer strings (and interpreter-language integers) and whether a
+    matching GetResponse arrived."""
     host = str(resolve_target(host))
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
-    names = {oid: name for name, oid in OIDS.items()}
+    names = {oid: name for name, oid in {**OIDS, **LANG_OIDS}.items()}
     pending = list(names)
     responded = False
     try:
@@ -190,7 +195,7 @@ def probe_printer(host: str, community: str = "public", timeout: float = 2,
                 error, index, values = response
                 if error == 0:
                     return {names[oid]: value for oid, value in values.items()
-                            if oid in pending and isinstance(value, str)}, responded
+                            if oid in pending and isinstance(value, (str, int))}, responded
                 # SNMPv1 reports a missing OID as an error for the entire request.
                 if error != 2 or not 1 <= index <= len(pending):
                     return {}, responded
@@ -198,3 +203,13 @@ def probe_printer(host: str, community: str = "public", timeout: float = 2,
     except OSError:
         pass
     return {}, responded
+
+
+def languages(values: dict[str, object]) -> list[str]:
+    """Page-description languages named by prtInterpreterLangFamily values."""
+    found = []
+    for name in LANG_OIDS:
+        language = LANG_FAMILIES.get(values.get(name)) if isinstance(values.get(name), int) else None
+        if language and language not in found:
+            found.append(language)
+    return found

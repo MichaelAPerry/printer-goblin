@@ -6,13 +6,18 @@ import pytest
 
 from printer_goblin import cli, safety, scope, verify
 from printer_goblin.identify import Fingerprint
+from printer_goblin.payloads import pjl
 
 
 def test_scope(monkeypatch):
     with pytest.raises(scope.ScopeError):
         scope.resolve_target("8.8.8.8")
+    with pytest.raises(scope.ScopeError, match="one /16 at a time"):
+        scope.parse_scan_range("10.0.0.0/15")
     with pytest.raises(scope.ScopeError):
-        scope.parse_scan_range("192.168.0.0/21")
+        scope.parse_scan_range("8.8.0.0/16")
+    assert scope.scan_host_count("10.20.0.0/16") == 65534
+    assert len(scope.parse_scan_range("192.168.0.0/21")) == 2046
     addresses = scope.parse_scan_range("192.168.1.0/24")
     assert len(addresses) == 254
     monkeypatch.setattr(socket, "getaddrinfo", lambda *args, **kwargs: [
@@ -129,8 +134,8 @@ def test_demo_one_raw_job(monkeypatch, tmp_path, localhost_tcp):
         with pytest.raises(BlockingIOError):
             listener.accept()
     assert confirmed == [ip]
-    assert len(jobs) == 1 and jobs[0].startswith(b"%!PS")
-    assert jobs[0].rstrip().endswith(b"showpage")
+    assert len(jobs) == 1 and jobs[0].startswith(pjl.UEL + b"@PJL JOB") and b"ENTER LANGUAGE = POSTSCRIPT\r\n%!PS" in jobs[0]
+    assert jobs[0].endswith(pjl.UEL) and jobs[0].split(pjl.UEL + b"@PJL EOJ")[0].rstrip().endswith(b"showpage")
 
 
 @pytest.mark.parametrize("states,allowed,classes,verdict,code", [
@@ -209,7 +214,8 @@ def test_demo_submits_and_records_one_raw_job_without_sockets(monkeypatch, tmp_p
             actions.append("close")
 
         def sendall(self, data):
-            assert data.startswith(b"%!PS") and data.rstrip().endswith(b"showpage")
+            assert data.startswith(pjl.UEL) and b"%!PS" in data and data.endswith(pjl.UEL)
+            assert data.split(b"\x1b%-12345X@PJL EOJ")[0].rstrip().endswith(b"showpage")
             actions.append("send")
 
         def shutdown(self, mode):
@@ -268,3 +274,33 @@ def test_slow_printer_ports_are_retried(monkeypatch):
     assert [(h.ip, sorted(h.open_ports)) for h in hosts] == [("192.168.9.5", [80, 515, 9100])]
     states = net.probe_with_retry([("192.168.9.5", 80)], 0.8)
     assert states[("192.168.9.5", 80)] == "open"
+
+
+def test_scan_estimate_warns_only_for_large_ranges():
+    from printer_goblin import discovery
+    small = discovery.scan_estimate("192.168.1.0/24")
+    assert not small["large"] and small["hosts"] == 254 and "intrusion" not in small["message"]
+    big = discovery.scan_estimate("10.20.0.0/16")
+    assert big["large"] and big["hosts"] == 65534 and "intrusion-detection" in big["message"]
+    assert 60 * 60 <= big["seconds"] <= 75 * 60  # worst case at the paced probe rate
+    assert "minutes" in big["message"]
+
+
+@pytest.mark.parametrize("tty,answer,expected", [
+    (True, "n", False), (True, "", False), (True, "y", True), (False, None, True)])
+def test_large_scan_asks_first_when_interactive(monkeypatch, capsys, tty, answer, expected):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: tty)
+    asked = []
+
+    def ask(prompt):
+        asked.append(prompt)
+        return answer
+
+    assert cli._scan_go_ahead("10.20.0.0/16", (9100, 631), ask=ask) is expected
+    assert bool(asked) == tty
+    assert "intrusion-detection" in capsys.readouterr().err
+
+
+def test_small_scan_never_asks(monkeypatch):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    assert cli._scan_go_ahead("192.168.1.0/24", (9100,), ask=lambda prompt: pytest.fail("asked")) is True

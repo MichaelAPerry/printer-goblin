@@ -15,7 +15,7 @@ Dependency budget: Python ≥3.10 standard library + [`segno`](https://pypi.org/
 
 ```
 printer_goblin/
-  scope.py        private/link-local only; scans capped at /22; DNS can't smuggle public targets
+  scope.py        private/link-local only; scans up to /16, warned and estimated above /22; DNS can't smuggle public targets
   safety.py       typed-address confirmation, 3 prints/run, 10-min per-target cooldown, audit log
   net.py          TCP connect probes (open / closed / filtered), bounded concurrency
   discovery.py    port sweep of an in-scope CIDR; sends no application data
@@ -31,6 +31,7 @@ printer_goblin/
     qr.py         QR matrix via segno
     postscript.py / pcl.py / pdf.py / pwg.py   one-page office renderers, no external resources
     escpos.py     allowlisted ESC/POS builder
+    pjl.py        fixed PJL frame (JOB / ENTER LANGUAGE / EOJ) for raw PostScript and PCL
     receipt.py    notice -> ESC/POS
   transports.py   raw 9100 (AppSocket/JetDirect) and IPP Print-Job
   verify.py       before/after reachability baseline and comparison
@@ -45,8 +46,9 @@ printer_goblin/
 
 * **Scope:** RFC 1918, RFC 6598, link-local and IPv6 ULA/link-local only. Not configurable from the CLI.
 * **No PJL and nothing sent to 9100 during identification.** Raw 9100 is checked with TCP connect alone. Identification uses the existing SNMP GET with community `public` and HTTP GET without credentials.
+* **PJL only as a language switch when printing.** Raw PostScript and PCL jobs are framed with `@PJL JOB`, `@PJL ENTER LANGUAGE`, and `@PJL EOJ` so older lasers (e.g. HP JetDirect) don't print the job as text. No other PJL command is ever sent; a test enforces the allowlist. PDF and PWG Raster go only over IPP.
 * **IPP Validate-Job:** Used only when the printer advertises the operation and a document format. RFC 8011 validation sends operation attributes alone and creates no job. Results go to the audit log. The CLI can skip this check with `--no-validate-job`.
-* **Fleet assessment:** `assess` composes the connect-only discovery sweep with the paper-free identify (same scope rules, /22 cap, at most 4 hosts in parallel). `fleet.py` imports no transport and no print workflow, and a test blocks `send_raw`, `send_ipp` and `print_job` while it runs. Per-host failures are recorded, not fatal; serials are masked as in single-printer reports.
+* **Fleet assessment:** `assess` composes the connect-only discovery sweep with the paper-free identify (same scope rules and /16 ceiling, at most 4 hosts in parallel). `fleet.py` imports no transport and no print workflow, and a test blocks `send_raw`, `send_ipp` and `print_job` while it runs. Per-host failures are recorded, not fatal; serials are masked as in single-printer reports.
 * **Management services:** Identify adds TCP connect checks on management ports. FTP and Telnet may supply server-first banners, capped at 512 bytes and two seconds. Discovery keeps its existing default port list.
 * **TLS inspection:** Open ports 443, 631, and 8443 get handshake-only checks with certificate verification disabled. No application data or credentials are sent. Certificate name equality indicates self-issuance. A separate handshake checks TLS 1.0/1.1 when local OpenSSL supports it.
 * **Unknown device + auto format = refuse.** The operator must choose a format explicitly.

@@ -13,7 +13,7 @@ from typing import Optional
 from . import discovery, net, safety, scope, transports, verify as verification
 from .findings import Finding, findings as observed_findings
 from .identify import Fingerprint, identify as fingerprint_target
-from .payloads import pcl, pdf, postscript, pwg, receipt
+from .payloads import pcl, pdf, pjl, postscript, pwg, receipt
 from .protocols import ipp
 from .payloads.notice import DEFAULT_GUIDE_URL, Notice, build_notice, service_lines
 
@@ -52,6 +52,19 @@ def render_notice(notice, fmt, paper="80", native_qr=True, *, media="letter"):
     return _RENDERERS[fmt](notice)
 
 
+_IPP_ONLY = {"pwg": "PWG Raster", "pdf": "PDF"}
+
+
+def _require_ipp(fmt, via):
+    """PDF and PWG Raster go only over IPP, which names the format.
+
+    Over raw port 9100 a printer without native support prints them as pages of text.
+    """
+    if fmt in _IPP_ONLY and via == "raw":
+        raise safety.PrintRefused(f"{_IPP_ONLY[fmt]} requires IPP. Select --via ipp, "
+                                  "or use PCL or PostScript for raw printing.")
+
+
 def _select_job(fingerprint: Fingerprint, format_name: str,
                 via: Optional[str]) -> tuple[str, str]:
     """Pick a format only when the printer has positively advertised it.
@@ -60,7 +73,7 @@ def _select_job(fingerprint: Fingerprint, format_name: str,
     Brother laser) prints pages of garbage, so auto mode never guesses.
     """
     if format_name != "auto":
-        return format_name, via or ("ipp" if format_name == "pwg" else "raw")
+        return format_name, via or ("ipp" if format_name in _IPP_ONLY else "raw")
     if fingerprint.kind == "unknown":
         raise safety.PrintRefused(
             "Unknown printer. Pass --format explicitly. Raw bytes sent to an unknown "
@@ -105,14 +118,16 @@ def _plan(target, ip, identify, fmt, via, port, guide_url, note, paper, native_q
         raise ValueError("invalid format, protocol, or paper size")
     if port is not None and (type(port) is not int or not 1 <= port <= 65535):
         raise ValueError("port must be in 1..65535")
-    if fmt == "pwg" and via == "raw":
-        raise safety.PrintRefused("PWG Raster requires IPP. Select --via ipp.")
+    _require_ipp(fmt, via)
     fp = identify(ip)
     fmt, protocol = _select_job(fp, fmt, via)
     port = port if port is not None else (631 if protocol == "ipp" else 9100)
     notice = build_notice(ip, port, protocol, net.source_label(ip), guide_url, note,
                           fingerprint=fp)
     data = render_notice(notice, fmt, paper, native_qr, media=pwg.media_for(fp.media_default))
+    if protocol == "raw" and fmt in pjl.LANGUAGES:
+        # Tell the printer which language follows, so it doesn't print the job as text.
+        data = pjl.wrap(data, fmt)
     summary = (
         f"[goblin] {ip}:{port} via {protocol.upper()} | {fmt} | {len(data)} bytes\n"
         f"One notice: {notice.headline}\n"
@@ -163,8 +178,7 @@ def _execute(plan, typed_address, authorized, governor, audit, on_status):
         raise safety.PrintRefused("Address confirmation declined.")
     if str(scope.resolve_target(plan.ip)) != plan.ip:
         raise safety.PrintRefused("Print plan requires a resolved printer address.")
-    if plan.format == "pwg" and plan.protocol != "ipp":
-        raise safety.PrintRefused("PWG Raster requires IPP. Select --via ipp.")
+    _require_ipp(plan.format, plan.protocol)
 
     def stage(status):
         audit.update(status=status, note=PHYSICAL_PRINT_NOTE)

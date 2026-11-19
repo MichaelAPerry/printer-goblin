@@ -16,7 +16,7 @@ from threading import Lock
 import segno
 
 from .. import report as assessment_report
-from .. import fleet, safety, workflow
+from .. import discovery, fleet, safety, workflow
 from ..assets import ASSET_DIR
 from ..discovery import DEFAULT_PORTS
 from ..identify import identify
@@ -102,6 +102,8 @@ class GoblinServer(ThreadingHTTPServer):
         return {"job_id": job_id}
 
     def action(self, route, body):
+        if route == "/api/scan-estimate":
+            return discovery.scan_estimate(_string(body, "cidr"), _ports(body))
         if route == "/api/discover":
             cidr, ports = _string(body, "cidr"), _ports(body)
             with self.lock:

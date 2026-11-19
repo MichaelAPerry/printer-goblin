@@ -67,11 +67,23 @@ function appendRow(parent, values) {
   parent.append(row);
 }
 
+// Large ranges get a time estimate and an explicit yes before anything is sent.
+async function scanGoAhead(request, status) {
+  const estimate = await api('scan-estimate', request);
+  if (estimate.large && !window.confirm(estimate.message + '\n\nProceed with this scan?')) {
+    status.textContent = 'Scan cancelled.';
+    return null;
+  }
+  return estimate.seconds >= 60 || estimate.large ? estimate.message : '';
+}
+
 form('discover-form', async () => {
   const status = byId('discover-status');
-  status.textContent = 'Discovery running…';
   try {
     const request = {cidr: byId('cidr').value, ports: ports()};
+    const note = await scanGoAhead(request, status);
+    if (note === null) return;
+    status.textContent = ('Discovery running… ' + note).trim();
     const job = await api('discover', request);
     let result;
     do {
@@ -163,7 +175,9 @@ byId('assess-all').addEventListener('click', async event => {
   byId('download-fleet').hidden = true;
   banner();
   try {
-    status.textContent = 'Assessing printers (nothing is printed)…';
+    const note = await scanGoAhead(lastDiscovery, status);
+    if (note === null) return;
+    status.textContent = ('Assessing printers (nothing is printed)… ' + note).trim();
     const job = await api('assess', lastDiscovery);
     let result;
     do {
@@ -371,3 +385,14 @@ mascot.addEventListener('load', () => {
 });
 mascot.src = '/mascot.png';
 refreshBaselines().catch(banner);
+
+// Paper width and image QR only matter for ESC/POS receipt printers; hide them otherwise.
+function receiptOptions() {
+  const format = byId('format').value;
+  byId('receipt-options').hidden = !['auto', 'escpos'].includes(format);
+  byId('receipt-hint').textContent = format === 'auto'
+    ? 'Used only if Auto identifies a receipt printer. Office printers disregard these settings.'
+    : 'These settings apply to the ESC/POS receipt being previewed.';
+}
+byId('format').addEventListener('change', receiptOptions);
+receiptOptions();

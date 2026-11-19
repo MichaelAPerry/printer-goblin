@@ -159,7 +159,7 @@ def test_concurrency_is_bounded():
 
 
 def test_scope_rules_still_apply():
-    for cidr in ("8.8.8.0/24", "10.0.0.0/20", "not-a-range"):
+    for cidr in ("8.8.8.0/24", "10.0.0.0/15", "not-a-range"):
         with pytest.raises(scope.ScopeError):
             fleet.assess_fleet(cidr, **injected())
     hostile = {"discover": lambda c, p: [{"ip": "8.8.8.8", "open_ports": [9100]}],

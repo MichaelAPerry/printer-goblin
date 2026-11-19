@@ -35,7 +35,7 @@ class Profile:
     formats: tuple[str, ...] = ()
     model: str = ""
     firmware: str = ""
-    snmp: Optional[dict[str, str]] = None
+    snmp: Optional[dict[str, object]] = None
     raw: bool = False
     http_title: Optional[str] = None
     lpd: bool = False
@@ -52,6 +52,14 @@ PROFILES: dict[str, Profile] = {
         ipp=True, ipp_auth=("requesting-user-name", "basic"), accepts_jobs=False,
         formats=("application/pdf", "image/pwg-raster"),
         model="Goblin Labs FakeJet 200 (locked)", firmware="FJ-2.00"),
+    # Like an early-2000s office laser behind a JetDirect card: no readable IPP,
+    # languages only in the SNMP Printer-MIB, raw 9100 with PJL language switching.
+    "office-legacy": Profile(
+        snmp={"sysDescr": "Goblin Labs ETHERNET MULTI-ENVIRONMENT,JETDIRECT-STYLE",
+              "sysName": "LEGACYJET", "hrDeviceDescr": "Goblin Labs LegacyJet 4300",
+              "prtInterpreterLangFamily.1": 5, "prtInterpreterLangFamily.2": 3,
+              "prtInterpreterLangFamily.3": 6},
+        raw=True, http_title="Goblin Labs LegacyJet 4300"),
     "receipt": Profile(
         snmp={"sysDescr": "EPSON TM-T88VI", "sysName": "TM-T88VI", "hrDeviceDescr": "EPSON TM-T88VI"},
         raw=True),
@@ -267,7 +275,8 @@ class FakePrinter:
                 oids.append(snmp._decode_oid(bindings.child(0x30).field(6)[1]))
         except ValueError:
             return None
-        known = {snmp.OIDS[name]: value for name, value in (self.profile.snmp or {}).items()}
+        oids_by_name = {**snmp.OIDS, **snmp.LANG_OIDS}
+        known = {oids_by_name[name]: value for name, value in (self.profile.snmp or {}).items()}
         with self._lock:
             self.snmp_requests.append({"oids": oids})
         error, index, out = 0, 0, b""
@@ -275,8 +284,13 @@ class FakePrinter:
             if oid not in known and not error:
                 error, index = 2, position  # noSuchName
             value = known.get(oid)
-            out += snmp._tlv(0x30, snmp._oid(oid) + (snmp._tlv(4, value.encode()) if value is not None
-                                                      else b"\x05\x00"))
+            if isinstance(value, int):
+                encoded = snmp._integer(value)
+            elif value is not None:
+                encoded = snmp._tlv(4, value.encode())
+            else:
+                encoded = b"\x05\x00"
+            out += snmp._tlv(0x30, snmp._oid(oid) + encoded)
         response = snmp._integer(request_id) + snmp._integer(error) + snmp._integer(index) + snmp._tlv(0x30, out)
         self._log(f"SNMP GET {len(oids)} OID(s)")
         return snmp._tlv(0x30, snmp._integer(0) + snmp._tlv(4, b"public") + snmp._tlv(0xA2, response))

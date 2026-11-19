@@ -157,7 +157,8 @@ def query_printer(host: str, port: int = 631, path: str = "/ipp/print",
                   timeout: float = 5) -> tuple[dict[str, list[object]], str]:
     """Return attributes and the path that accepted the read-only query."""
     host = str(resolve_target(host))
-    for endpoint in dict.fromkeys((path, "/", "/printers/")):
+    # "/ipp" and "/ipp/port1" are where older HP JetDirect cards answer.
+    for endpoint in dict.fromkeys((path, "/", "/printers/", "/ipp", "/ipp/port1")):
         request = encode_request(0x000B, _uri(host, port, endpoint),
                                  requested_attributes=REQUESTED_ATTRIBUTES)
         http_status, body = _post(host, port, endpoint, timeout, request)

@@ -227,7 +227,7 @@ def assess_fleet(cidr: str, *, ports: Iterable[int] = discovery.DEFAULT_PORTS, v
     identify Fingerprint. Both default to the real read-only implementations. `on_progress(done,
     total, entry)` is called from the calling thread after each host.
     """
-    addresses = scope.parse_scan_range(cidr)  # same private-only, /22-capped rules as discover
+    addresses = scope.parse_scan_range(cidr)  # same private-only, /16-capped rules as discover
     ports = tuple(dict.fromkeys(ports))
     discover = discover or (lambda c, p: workflow.discover(c, p)["hosts"])
     probe = identify or partial(probe_printer, validate_job=validate_job, assess=True)
