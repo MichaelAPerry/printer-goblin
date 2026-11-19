@@ -99,11 +99,13 @@ def build_notice(target: str, port: int, protocol: str, source: str,
 HEADLINE = "YOU'VE BEEN GOBBED!"
 # Drafted by the local wording model (qwen3.5:9b); line 4 corrected for
 # accuracy (printers usually keep a job-log entry, so "nothing saved" is untrue).
+# Lines 3-4 describe what the tool does; the software can't vouch that a given
+# run was authorized, so the sheet doesn't claim it.
 NOTICE_BODY: List[str] = [
     "A goblin just grabbed a page here!",
     "It came from a network that shouldn't reach us.",
-    "This was an authorized security test, not a hack.",
-    "No settings were changed and nothing was taken.",
+    "Printer Goblin changes no settings or files.",
+    "Expected or not, IT will want to see this.",
     "Please hand this sheet to your IT or Security team.",
     "We are checking our printer protection right now.",
 ]

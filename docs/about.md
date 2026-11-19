@@ -21,7 +21,7 @@ Printer Goblin is made for IT administrators and security teams. It is equally u
 ### Safety and Ethics
 Safety and ethics are central to this project. Printer Goblin is explicitly **not** an exploitation tool, nor is it a scanner for the broader internet. The software is designed with strict safeguards: it refuses to operate against public IP addresses, ensures printing only occurs after operator confirmation, keeps total print volume to a minimum to reduce waste and noise, and never sends commands that could control peripherals like cash drawers.
 
-We adhere to strict ethical guidelines. You should only test networks and printers you own or have written permission to evaluate. It is good practice to tell people when a test is happening where appropriate. Furthermore, the printout itself clearly states it was generated during an authorized test and politely asks anyone who finds it to pass the page along to IT.
+We adhere to strict ethical guidelines. You should only test networks and printers you own or have written permission to evaluate. It is good practice to tell people when a test is happening where appropriate. The printout says what the tool does and does not do, and asks whoever finds it to pass the page to IT, who can confirm whether the test was expected.
 
 ### Get Involved
 We believe in building security tools together. Issues and pull requests are welcome at https://github.com/MichaelAPerry/printer-goblin . We are particularly eager for contributions regarding reports of how Printer Goblin behaves on specific printer models, as compatibility varies across the vast landscape of printing hardware.

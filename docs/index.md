@@ -11,17 +11,15 @@ title: "You've been gobbed! Now what?"
 
 # You've been gobbed! Now what?
 
-Congratulations on discovering **Printer Goblin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code titled **"YOU'VE BEEN GOBBED!"**, take a deep breath. This is not an attack, your data has not been stolen, and no malicious documents were printed. It came from an authorized security test of how well your network keeps printers fenced off.
+Congratulations on discovering **Printer Goblin**, our open-source tool designed to help organizations audit their printing infrastructure. If you found this page after scanning a QR code on a **"YOU'VE BEEN GOBBED!"** printout, take a breath. Printer Goblin only works on private networks, and its operator has to type the printer's address to confirm before anything prints. It is built to check whether printers are properly fenced off, and it cannot change printer settings or read stored documents. This page explains what the tool does and doesn't do. Whether a particular printout came from a planned test is something your IT team can confirm.
 
 Here is everything you need to know, depending on your role.
 
 ## Found this page on a printout?
 
-If you are ordinary office staff who stumbled upon this notice while working: **stop here**. The printout itself is benign; it contains no sensitive information about you or the company.
+A Printer Goblin notice normally means someone ran a check and the printer could be reached from a network that shouldn't reach it. The tool is designed to print one page and read basic printer details. It does not change printer settings, read stored documents, or send cash-drawer or other peripheral commands. The page itself contains no information about you.
 
-This notice came from an authorized security test conducted by our IT or security team. They verified that unauthorized hosts could communicate with your printers and generated this report to trigger a response. Rest assured: **no printer settings were changed**, and **no documents were read** or accessed during the test. Your privacy and data integrity remain intact.
-
-The next step is simple: hand the printout to your local IT support or security team immediately. The details printed on it—including the printer's network address, the time of the test, and the source network segment—are crucial telemetry. They will use this information to verify the findings and apply the necessary fixes quickly. Once they confirm the issue is resolved, you can safely discard the notice.
+**Hand the sheet to your IT or Security team**, whether or not you were told a test was happening. The printed details (the printer's address, the time, and the source network) help them confirm whether the check was expected and find the gap in the network. Once they've dealt with it, the sheet can be discarded.
 
 ## What the test showed (for IT)
 
