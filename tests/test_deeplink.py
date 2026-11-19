@@ -81,3 +81,23 @@ def test_every_emittable_ref_has_a_doc_anchor():
     missing = [fid for fid in _finding_ids()
                if "{#%s}" % Finding(fid, "info", "t", "d", "observed").ref not in text]
     assert not missing, f"docs/findings.md lacks anchors for: {missing}"
+
+
+def test_printed_finding_lines_fit_and_never_cut_mid_word():
+    fp = Fingerprint(IP, ports=[9100, 631, 515, 80], kind="office", ipp_ok=True,
+                     validate_job_status=0, firmware="1.0")
+    notice = build_notice(IP, 9100, "raw", "10.0.0.0/24", fingerprint=fp)
+    assert notice.findings, "expected findings for an open printer"
+    lines = notice.fact_lines()
+    for finding in notice.findings[:6]:
+        if finding.id == "FIRMWARE":
+            continue
+        printed = next(line for line in lines if line == finding.detail or line.endswith("...")
+                       and finding.detail.startswith(line[:-3]))
+        assert len(printed) <= 84
+        if printed != finding.detail:
+            # A shortened line stops at a word boundary.
+            assert finding.detail[len(printed) - 3] == " "
+    long = Finding("X", "high", "t", "word " * 30, "observed")
+    notice.findings = [long]
+    assert notice.fact_lines()[-1].endswith("...") and len(notice.fact_lines()[-1]) <= 84

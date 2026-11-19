@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import textwrap
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -38,7 +39,12 @@ class Notice:
         report = [item for item in self.findings if item.id != "FIRMWARE"][:6]
         return [FACT_HEADING, *(self.device or ["(not identified)"]), *self.services,
                 *(line for finding in report
-                  for line in (f"[{finding.severity.upper()}] {finding.title}"[:84], finding.detail[:84]))]
+                  for line in (_fit(f"[{finding.severity.upper()}] {finding.title}"), _fit(finding.detail)))]
+
+
+def _fit(text: str, width: int = 84) -> str:
+    """One printed line: shorten at a word boundary instead of cutting mid-word."""
+    return textwrap.shorten(text, width, placeholder="...")
 
 
 FACT_HEADING = "WHAT THE GOBLIN SAW"
